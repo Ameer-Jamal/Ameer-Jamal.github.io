@@ -1,1 +1,0 @@
-# Ameer-Jamal.github.io

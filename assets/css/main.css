@@ -1379,6 +1379,13 @@ t
 				line-height: 2;
 			}
 
+			#header .content .inner .subIntro p{
+				text-transform: uppercase;
+				letter-spacing: 0.2rem;
+				font-size: 0.7rem;
+				line-height: 2;
+			}
+
 		#header nav ul {
 			display: -moz-flex;
 			display: -webkit-flex;
@@ -1465,6 +1472,8 @@ t
 				opacity: 0;
 			}
 
+		
+
 		@media screen and (max-width: 980px) {
 
 			#header .content p br {
@@ -1504,6 +1513,8 @@ t
 			}
 
 		}
+
+
 
 		@media screen and (max-width: 480px) {
 

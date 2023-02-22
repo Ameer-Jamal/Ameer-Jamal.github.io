@@ -1363,7 +1363,7 @@ t
 				-webkit-transition-delay: 0.25s;
 				-ms-transition-delay: 0.25s;
 				transition-delay: 0.25s;
-				padding: 3rem 2rem;
+				padding: 3rem 5rem;
 				max-height: 40rem;
 				overflow: hidden;
 			}
@@ -1382,8 +1382,9 @@ t
 			#header .content .inner .subIntro p{
 				text-transform: uppercase;
 				letter-spacing: 0.2rem;
-				font-size: 0.7rem;
+				font-size: 0.8rem;
 				line-height: 2;
+				margin-top: 1.2rem;
 			}
 
 		#header nav ul {

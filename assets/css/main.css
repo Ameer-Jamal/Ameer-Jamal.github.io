@@ -1363,6 +1363,7 @@ t
 				-webkit-transition-delay: 0.25s;
 				-ms-transition-delay: 0.25s;
 				transition-delay: 0.25s;
+				/* Size of lines and how they are contained in header and tittle/subtitle */
 				padding: 3rem 5rem;
 				max-height: 40rem;
 				overflow: hidden;
@@ -1378,6 +1379,8 @@ t
 				font-size: 0.8rem;
 				line-height: 2;
 			}
+
+			/* The text under title */
 
 			#header .content .inner .subIntro p{
 				text-transform: uppercase;

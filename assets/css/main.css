@@ -1204,20 +1204,20 @@ t
 			background-position: center;
 			background-size: cover;
 			background-repeat: no-repeat;
-			filter: blur(7.5px) contrast(130%);
+			filter: blur(6.5px) contrast(120%) brightness(130%);
 			z-index: 1;
 		}
 
 		body.is-article-visible #bg:after {
-			-moz-transform: scale(1.2825);
-			-webkit-transform: scale(1.2825);
-			-ms-transform: scale(1.2825);
-			transform: scale(1.2825);
+			-moz-transform: scale(1.2);
+			-webkit-transform: scale(1.2);
+			-ms-transform: scale(1.2);
+			transform: scale(1.2);
 			-moz-filter: blur(0.2rem);
 			-webkit-filter: blur(0.2rem);
 			-ms-filter: blur(0.2rem);
-			filter: blur(9px) contrast(130%);
-			transition: transform 330ms ease-in-out;
+			filter: blur(9px) contrast(120%)brightness(100%);;
+			transition: transform 1000ms ease-in-out;
 		}
 
 		body.is-preload #bg:before {

@@ -7,9 +7,9 @@
 
 
 function submitAndResetForm() {
+	//After posting make sure to reset the message box for if you want to send other messages 
     document.getElementById("contactForm").submit();
-	document.getElementById("contactForm").reset();
-
+	document.getElementById('message').value = "";
 }
 
 

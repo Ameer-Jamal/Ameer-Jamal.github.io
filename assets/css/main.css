@@ -1176,22 +1176,21 @@ t
 		}
 
 		#bg:before {
-			-moz-transition: background-color 2.5s ease-in-out;
-			-webkit-transition: background-color 2.5s ease-in-out;
-			-ms-transition: background-color 2.5s ease-in-out;
-			transition: background-color 2.5s ease-in-out;
+			-moz-transition: background-color 1.5s ease-in-out;
+			-webkit-transition: background-color 1.5s ease-in-out;
+			-ms-transition: background-color 1.5s ease-in-out;
+			transition: background-color 1.5s ease-in-out;
 			-moz-transition-delay: 0.75s;
 			-webkit-transition-delay: 0.75s;
 			-ms-transition-delay: 0.75s;
 			transition-delay: 0.75s;
 			background-image: linear-gradient(to top, rgba(19, 21, 25, 0.5), rgba(19, 21, 25, 0.5)), url("../../images/overlay.png");
-			background-size: auto,
- 256px 256px;
-			background-position: center,
- center;
-			background-repeat: no-repeat,
- repeat;
+			background-size: auto;
+			background-position: center;
+			background-repeat: no-repeat;
 			z-index: 2;
+
+			
 		}
 
 		#bg:after {
@@ -1207,20 +1206,20 @@ t
 			background-position: center;
 			background-size: cover;
 			background-repeat: no-repeat;
-			filter: blur(6.5px) contrast(120%) brightness(130%);
+			filter: blur(6.5px) contrast(120%) brightness(125%);
 			z-index: 1;
+			transition: all 300ms ease;
+			-webkit-transition: all 300ms ease;
 		}
 
 		body.is-article-visible #bg:after {
-			-moz-transform: scale(1.2);
-			-webkit-transform: scale(1.2);
-			-ms-transform: scale(1.2);
-			transform: scale(1.2);
+
 			-moz-filter: blur(0.2rem);
 			-webkit-filter: blur(0.2rem);
 			-ms-filter: blur(0.2rem);
-			filter: blur(9px) contrast(120%)brightness(100%);;
-			transition: transform 1000ms ease-in-out;
+			filter: blur(75px) contrast(120%)brightness(30%) saturate(350%);
+			transition: all 1000ms ease;
+			-webkit-transition: all 1000ms ease;
 		}
 
 		body.is-preload #bg:before {
@@ -1601,10 +1600,10 @@ t
 			-webkit-transform: translateY(0.25rem);
 			-ms-transform: translateY(0.25rem);
 			transform: translateY(0.25rem);
-			-moz-transition: opacity 0.325s ease-in-out, -moz-transform 0.325s ease-in-out;
-			-webkit-transition: opacity 0.325s ease-in-out, -webkit-transform 0.325s ease-in-out;
-			-ms-transition: opacity 0.325s ease-in-out, -ms-transform 0.325s ease-in-out;
-			transition: opacity 0.325s ease-in-out, transform 0.325s ease-in-out;
+			-moz-transition: opacity 0.2s ease-in-out, -moz-transform 0.2s ease-in-out;
+			-webkit-transition: opacity 0.2s ease-in-out, -webkit-transform 0.2s ease-in-out;
+			-ms-transition: opacity 0.2s ease-in-out, -ms-transform 0.2s ease-in-out;
+			transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
 			padding: 1.5rem 1rem 1.5rem 1rem ;
 			position: relative;
 			width: 40rem;
@@ -1616,8 +1615,8 @@ t
 
 		}
 		#main article p {
-			padding-left: .5rem;
-			padding-right: .5rem;
+			padding-left: .6rem;
+			padding-right: .6rem;
 
 
 		}
@@ -1630,6 +1629,7 @@ t
 				-ms-transform: translateY(0);
 				transform: translateY(0);
 				opacity: 1;
+				
 			}
 
 			#main article .close {
@@ -1743,6 +1743,7 @@ t
 		}
 
 
+/* Scrollbar */
 		
 ::-webkit-scrollbar-track
 {

@@ -1206,10 +1206,11 @@ t
 			background-position: center;
 			background-size: cover;
 			background-repeat: no-repeat;
-			filter: blur(6.5px) contrast(120%) brightness(125%);
+			filter: blur(1.5px) contrast(120%) brightness(80%);
+			/* filter: blur(6.5px) contrast(120%) brightness(125%); */
 			z-index: 1;
-			transition: all 300ms ease;
-			-webkit-transition: all 300ms ease;
+			transition: all 300ms ease-in-out;
+			-webkit-transition: all 300ms ease-in-out;
 		}
 
 		body.is-article-visible #bg:after {
@@ -1218,8 +1219,8 @@ t
 			-webkit-filter: blur(0.2rem);
 			-ms-filter: blur(0.2rem);
 			filter: blur(75px) contrast(120%)brightness(30%) saturate(350%);
-			transition: all 1000ms ease;
-			-webkit-transition: all 1000ms ease;
+			transition: all 1000ms ease-in-out;
+			-webkit-transition: all 1000ms ease-in-out;
 		}
 
 		body.is-preload #bg:before {

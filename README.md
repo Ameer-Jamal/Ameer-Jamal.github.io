@@ -33,4 +33,4 @@ Feel free to dive into the code, and explore the website! Your feedback and cont
 
 ---
 
-_Enjoy exploring the repo, and happy coding!_ 🎉
+_Enjoy exploring the repo, and happy coding :) !_ 🎉

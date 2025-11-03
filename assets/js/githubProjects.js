@@ -57,10 +57,14 @@
             try {
                 const pinnedRepos = await this.fetchPinnedRepositories();
                 if (Array.isArray(pinnedRepos) && pinnedRepos.length > 0) {
+                    console.info('[GitHubProjects] Rendering pinned repositories.', {
+                        username: this.username,
+                        total: pinnedRepos.length
+                    });
                     return pinnedRepos.slice(0, this.repoLimit);
                 }
             } catch (error) {
-                console.warn('Failed to load pinned repositories, falling back to GitHub API.', error);
+                console.warn('[GitHubProjects] Failed to load pinned repositories, falling back to GitHub API.', error);
             }
 
             return this.fetchFromGitHubApi();
@@ -70,8 +74,24 @@
             const url = new URL(this.pinnedServiceUrl);
             url.searchParams.set('username', this.username);
 
-            const response = await this.fetcher(url.toString());
+            console.info('[GitHubProjects] Requesting pinned repositories.', {
+                url: url.toString()
+            });
+
+            let response;
+            try {
+                response = await this.fetcher(url.toString());
+            } catch (error) {
+                console.error('[GitHubProjects] Network error while fetching pinned repositories.', error);
+                throw error;
+            }
             if (!response.ok) {
+                const status = typeof response.status === 'number' ? response.status : 'unknown';
+                const statusText = response.statusText || 'No status text';
+                console.warn('[GitHubProjects] Pinned repositories request failed.', {
+                    status,
+                    statusText
+                });
                 throw new Error('Pinned repositories request failed');
             }
 
@@ -85,8 +105,22 @@
 
         async fetchFromGitHubApi() {
             const url = `https://api.github.com/users/${this.username}/repos?per_page=100&sort=updated`;
-            const response = await this.fetcher(url);
+            console.info('[GitHubProjects] Requesting repositories from GitHub API.', { url });
+
+            let response;
+            try {
+                response = await this.fetcher(url);
+            } catch (error) {
+                console.error('[GitHubProjects] Network error while fetching repositories from GitHub API.', error);
+                throw error;
+            }
             if (!response.ok) {
+                const status = typeof response.status === 'number' ? response.status : 'unknown';
+                const statusText = response.statusText || 'No status text';
+                console.error('[GitHubProjects] GitHub API request failed.', {
+                    status,
+                    statusText
+                });
                 throw new Error('GitHub API request failed');
             }
 
@@ -98,6 +132,10 @@
             const filtered = data.filter((repo) => !repo.fork);
             const normalized = filtered.map((repo) => RepositoryNormalizer.fromGitHub(repo));
             normalized.sort((a, b) => b.stars - a.stars || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+            console.info('[GitHubProjects] Rendering GitHub API repositories.', {
+                username: this.username,
+                total: normalized.length
+            });
             return normalized.slice(0, this.repoLimit);
         }
     }
@@ -131,6 +169,9 @@
             this.container.innerHTML = '';
 
             if (!repositories || repositories.length === 0) {
+                console.info('[GitHubProjects] No repositories available after fetch.', {
+                    total: repositories ? repositories.length : 0
+                });
                 this.renderError('No public projects found just yet. Please check back soon!');
                 return;
             }
@@ -194,7 +235,7 @@
                     const fallbackRenderer = this.renderer || new RepoRenderer(containerElement);
                     fallbackRenderer.renderError('Unable to load GitHub projects right now. Please try again later.');
                 }
-                console.error('Unable to initialize GitHub project section.', error);
+                console.error('[GitHubProjects] Unable to initialize GitHub project section.', error);
             }
         }
 

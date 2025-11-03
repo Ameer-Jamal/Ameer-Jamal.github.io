@@ -13,11 +13,16 @@
 
             return {
                 name: pinnedRepo.repo || pinnedRepo.name || 'Untitled Project',
-                description: pinnedRepo.description || 'No description provided.',
+                description: pinnedRepo.description || '',
                 language: pinnedRepo.language || 'Not specified',
                 url: pinnedRepo.link || pinnedRepo.url || '#',
                 stars: Number.isFinite(starValue) ? starValue : 0,
-                updatedAt: pinnedRepo.updated_at || null
+                updatedAt: pinnedRepo.updated_at || null,
+                forks: typeof pinnedRepo.forks === 'number' ? pinnedRepo.forks : 0,
+                openIssues: typeof pinnedRepo.open_issues === 'number' ? pinnedRepo.open_issues : 0,
+                watchers: typeof pinnedRepo.watchers === 'number' ? pinnedRepo.watchers : null,
+                defaultBranch: pinnedRepo.default_branch || null,
+                homepage: pinnedRepo.homepage || null
             };
         }
 
@@ -28,10 +33,15 @@
 
             return {
                 name: githubRepo.name || 'Untitled Project',
-                description: githubRepo.description || 'No description provided.',
+                description: githubRepo.description || '',
                 language: githubRepo.language || 'Not specified',
                 url: githubRepo.html_url || '#',
                 stars: typeof githubRepo.stargazers_count === 'number' ? githubRepo.stargazers_count : 0,
+                forks: typeof githubRepo.forks_count === 'number' ? githubRepo.forks_count : 0,
+                openIssues: typeof githubRepo.open_issues_count === 'number' ? githubRepo.open_issues_count : 0,
+                watchers: typeof githubRepo.watchers_count === 'number' ? githubRepo.watchers_count : null,
+                defaultBranch: githubRepo.default_branch || null,
+                homepage: githubRepo.homepage || null,
                 updatedAt: githubRepo.pushed_at || githubRepo.updated_at || null
             };
         }
@@ -50,10 +60,12 @@
 
             this.fetcher = options.fetch || defaultFetch;
             this.pinnedServiceUrl = options.pinnedServiceUrl || 'https://gh-pinned-repos.egoist.dev/';
-            this.repoLimit = options.repoLimit || 6;
+            const limitOption = options.repoLimit;
+            this.repoLimit = Number.isInteger(limitOption) && limitOption > 0 ? limitOption : null;
         }
 
         async fetchRepositories() {
+            let repositories = [];
             try {
                 const pinnedRepos = await this.fetchPinnedRepositories();
                 if (Array.isArray(pinnedRepos) && pinnedRepos.length > 0) {
@@ -61,13 +73,25 @@
                         username: this.username,
                         total: pinnedRepos.length
                     });
-                    return pinnedRepos.slice(0, this.repoLimit);
+                    repositories = pinnedRepos;
                 }
             } catch (error) {
                 console.warn('[GitHubProjects] Failed to load pinned repositories, falling back to GitHub API.', error);
             }
 
-            return this.fetchFromGitHubApi();
+            if (!repositories.length) {
+                repositories = await this.fetchFromGitHubApi();
+            }
+
+            const filtered = this.filterExcluded(repositories);
+            const sorted = this.sortRepositories(filtered);
+            const limited = this.applyRepoLimit(sorted);
+            const enriched = await this.enrichRepositories(limited);
+            console.info('[GitHubProjects] Rendering GitHub API repositories.', {
+                username: this.username,
+                total: enriched.length
+            });
+            return enriched;
         }
 
         async fetchPinnedRepositories() {
@@ -130,38 +154,172 @@
             }
 
             const filtered = data.filter((repo) => !repo.fork);
-            const normalized = filtered.map((repo) => RepositoryNormalizer.fromGitHub(repo));
-            normalized.sort((a, b) => b.stars - a.stars || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
-            console.info('[GitHubProjects] Rendering GitHub API repositories.', {
-                username: this.username,
-                total: normalized.length
+            return filtered.map((repo) => RepositoryNormalizer.fromGitHub(repo));
+        }
+
+        sortRepositories(repositories = []) {
+            return [...repositories].sort((a, b) => {
+                const starDelta = (b.stars || 0) - (a.stars || 0);
+                if (starDelta !== 0) {
+                    return starDelta;
+                }
+                const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+                const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+                return dateB - dateA;
             });
-            return normalized.slice(0, this.repoLimit);
+        }
+
+        filterExcluded(repositories = []) {
+            const excludedNames = new Set(['ameer-jamal', 'ameer-jamal.github.io']);
+            return repositories.filter((repo) => {
+                if (!repo || !repo.name) {
+                    return false;
+                }
+                const normalized = String(repo.name).trim().toLowerCase();
+                return !excludedNames.has(normalized);
+            });
+        }
+
+        applyRepoLimit(repositories = []) {
+            if (!this.repoLimit) {
+                return repositories;
+            }
+            return repositories.slice(0, this.repoLimit);
+        }
+
+        async enrichRepositories(repositories = []) {
+            if (!repositories.length) {
+                return [];
+            }
+
+            const enriched = await Promise.all(repositories.map(async (repo) => {
+                try {
+                    const readme = await this.fetchReadme(repo);
+                    return Object.assign({}, repo, {
+                        readmeRaw: readme ? readme.text : null,
+                        readmeHtmlUrl: readme && readme.htmlUrl ? readme.htmlUrl : repo.url,
+                        readmeRawUrl: readme && readme.rawUrl ? readme.rawUrl : null,
+                        readmeRawBaseUrl: readme && readme.rawBaseUrl ? readme.rawBaseUrl : null,
+                        readmeHtmlBaseUrl: readme && readme.htmlBaseUrl ? readme.htmlBaseUrl : null
+                    });
+                } catch (error) {
+                    console.warn('[GitHubProjects] Unable to load README for repository.', {
+                        repo: repo.name,
+                        message: error && error.message ? error.message : 'Unknown error'
+                    });
+                    return Object.assign({}, repo, {
+                        readmeRaw: null,
+                        readmeHtmlUrl: repo.url,
+                        readmeRawUrl: null,
+                        readmeRawBaseUrl: null,
+                        readmeHtmlBaseUrl: null
+                    });
+                }
+            }));
+
+            return enriched;
+        }
+
+        async fetchReadme(repo) {
+            if (!repo || !repo.name) {
+                return null;
+            }
+
+            const repoName = repo.name;
+            const encodedName = encodeURIComponent(repoName);
+            const url = `https://api.github.com/repos/${this.username}/${encodedName}/readme`;
+
+            console.info('[GitHubProjects] Requesting repository README.', {
+                username: this.username,
+                repository: repoName,
+                url
+            });
+
+            let response;
+            try {
+                response = await this.fetcher(url);
+            } catch (error) {
+                console.error('[GitHubProjects] Network error while fetching README.', {
+                    repository: repoName
+                }, error);
+                throw error;
+            }
+
+            if (response.status === 404) {
+                console.info('[GitHubProjects] README not found for repository.', {
+                    repository: repoName
+                });
+                return null;
+            }
+
+            if (!response.ok) {
+                const status = typeof response.status === 'number' ? response.status : 'unknown';
+                const statusText = response.statusText || 'No status text';
+                throw new Error(`README request failed (${status} ${statusText})`);
+            }
+
+            const data = await response.json();
+            if (!data || typeof data !== 'object') {
+                return null;
+            }
+
+            const encoding = data.encoding || 'base64';
+            const content = typeof data.content === 'string'
+                ? decodeReadmeContent(data.content, encoding)
+                : null;
+
+            return {
+                text: content ? content.trim() : null,
+                htmlUrl: data.html_url || data.download_url || repo.url,
+                rawUrl: data.download_url || null,
+                rawBaseUrl: deriveBaseUrl(data.download_url),
+                htmlBaseUrl: deriveBaseUrl(data.html_url)
+            };
         }
     }
 
     class RepoRenderer {
-        constructor(container, doc = document) {
+        constructor(container, { doc = document, username = null } = {}) {
             if (!container) {
                 throw new Error('A container element is required');
             }
             this.container = container;
             this.doc = doc;
+            this.username = username;
         }
 
         renderLoading() {
             this.container.innerHTML = '';
-            const loading = this.doc.createElement('p');
-            loading.className = 'github-projects__status';
-            loading.textContent = 'Loading GitHub projects...';
-            this.container.appendChild(loading);
+            const loader = this.doc.createElement('div');
+            loader.className = 'github-projects__loader';
+
+            const spinner = this.doc.createElement('div');
+            spinner.className = 'github-projects__spinner';
+            spinner.setAttribute('role', 'status');
+            spinner.setAttribute('aria-label', 'Loading GitHub projects');
+
+            loader.appendChild(spinner);
+            this.container.appendChild(loader);
         }
 
-        renderError(message) {
+        renderError({ message, showLink } = {}) {
             this.container.innerHTML = '';
-            const error = this.doc.createElement('p');
+            const error = this.doc.createElement('div');
             error.className = 'github-projects__status github-projects__status--error';
-            error.textContent = message;
+
+            if (showLink && this.username) {
+                const link = this.doc.createElement('a');
+                link.href = `https://github.com/${this.username}?tab=repositories`;
+                link.target = '_blank';
+                link.rel = 'noopener';
+                link.textContent = 'Click here to view my GitHub projects';
+                error.appendChild(link);
+            } else if (message) {
+                error.textContent = message;
+            } else {
+                error.textContent = 'Something went wrong. Please try again later.';
+            }
+
             this.container.appendChild(error);
         }
 
@@ -172,43 +330,477 @@
                 console.info('[GitHubProjects] No repositories available after fetch.', {
                     total: repositories ? repositories.length : 0
                 });
-                this.renderError('No public projects found just yet. Please check back soon!');
+                this.renderError({ message: 'No public projects found just yet. Please check back soon!' });
                 return;
             }
 
-            repositories.forEach((repo) => {
-                const card = this.doc.createElement('article');
-                card.className = 'github-projects__card';
+            const markdownRenderer = new MarkdownRenderer({ doc: this.doc });
+            const carousel = new RepoCarousel(this.doc, repositories, {
+                markdownRenderer,
+                username: this.username
+            });
+            this.container.appendChild(carousel.getElement());
+        }
+    }
 
-                const title = this.doc.createElement('h4');
-                title.className = 'github-projects__card-title';
-                title.textContent = repo.name;
+    class RepoCarousel {
+        constructor(doc, repositories, options = {}) {
+            this.doc = doc;
+            this.repositories = Array.isArray(repositories) ? repositories : [];
+            this.total = this.repositories.length;
+            this.currentIndex = 0;
+            this.markdownRenderer = options.markdownRenderer || new MarkdownRenderer({ doc: this.doc });
+            this.username = options.username || null;
+
+            this.root = this.doc.createElement('div');
+            this.root.className = 'github-projects__carousel';
+
+            this.prevButton = this.createNavButton('previous', '‹');
+            this.nextButton = this.createNavButton('next', '›');
+
+            this.cardHost = this.doc.createElement('div');
+            this.cardHost.className = 'github-projects__carousel-card';
+
+            this.positionIndicator = this.doc.createElement('p');
+            this.positionIndicator.className = 'github-projects__position';
+
+            this.root.appendChild(this.prevButton);
+            this.root.appendChild(this.cardHost);
+            this.root.appendChild(this.nextButton);
+            this.root.appendChild(this.positionIndicator);
+
+            this.prevButton.addEventListener('click', () => this.goToPrevious());
+            this.nextButton.addEventListener('click', () => this.goToNext());
+
+            this.update();
+        }
+
+        getElement() {
+            return this.root;
+        }
+
+        goToPrevious() {
+            if (this.total <= 1) {
+                return;
+            }
+            this.currentIndex = (this.currentIndex - 1 + this.total) % this.total;
+            this.update(-1);
+        }
+
+        goToNext() {
+            if (this.total <= 1) {
+                return;
+            }
+            this.currentIndex = (this.currentIndex + 1) % this.total;
+            this.update(1);
+        }
+
+        update(direction = 0) {
+            this.cardHost.innerHTML = '';
+
+            if (!this.total) {
+                const fallback = this.doc.createElement('p');
+                fallback.className = 'github-projects__status';
+                fallback.textContent = 'No repositories to display.';
+                this.cardHost.appendChild(fallback);
+                this.prevButton.disabled = true;
+                this.nextButton.disabled = true;
+                this.positionIndicator.textContent = '';
+                return;
+            }
+
+            const repo = this.repositories[this.currentIndex];
+            const card = this.createCard(repo);
+            if (direction > 0) {
+                card.classList.add('github-projects__card--enter-next');
+            } else if (direction < 0) {
+                card.classList.add('github-projects__card--enter-prev');
+            }
+            this.cardHost.appendChild(card);
+
+            if (direction !== 0) {
+                const win = this.doc && this.doc.defaultView ? this.doc.defaultView : null;
+                const scheduler = win && typeof win.requestAnimationFrame === 'function'
+                    ? win.requestAnimationFrame.bind(win)
+                    : (typeof requestAnimationFrame === 'function'
+                        ? requestAnimationFrame
+                        : (callback) => setTimeout(callback, 0));
+                scheduler(() => {
+                    card.classList.add('github-projects__card--enter-active');
+                });
+                card.addEventListener('transitionend', () => {
+                    card.classList.remove('github-projects__card--enter-next', 'github-projects__card--enter-prev', 'github-projects__card--enter-active');
+                }, { once: true });
+            }
+
+            const disableNav = this.total <= 1;
+            this.prevButton.disabled = disableNav;
+            this.nextButton.disabled = disableNav;
+            this.positionIndicator.textContent = `Project ${this.currentIndex + 1} of ${this.total}`;
+        }
+
+        createNavButton(direction, label) {
+            const button = this.doc.createElement('button');
+            button.type = 'button';
+            button.className = `github-projects__nav github-projects__nav--${direction}`;
+            button.setAttribute('aria-label', `${direction === 'previous' ? 'Previous' : 'Next'} project`);
+            button.textContent = label;
+            return button;
+        }
+
+        createCard(repo) {
+            const card = this.doc.createElement('div');
+            card.className = 'github-projects__card';
+
+            const title = this.doc.createElement('h4');
+            title.className = 'github-projects__card-title';
+            title.textContent = repo.name;
+
+            if (repo.description && repo.description.trim().length > 0) {
+                const descriptionSection = this.doc.createElement('div');
+                descriptionSection.className = 'github-projects__section';
+
+                const descriptionHeading = this.doc.createElement('h5');
+                descriptionHeading.className = 'github-projects__section-heading';
+                descriptionHeading.textContent = 'Description';
 
                 const description = this.doc.createElement('p');
                 description.className = 'github-projects__card-description';
                 description.textContent = repo.description;
 
-                const meta = this.doc.createElement('p');
-                meta.className = 'github-projects__card-meta';
-                const language = repo.language ? `${repo.language}` : 'Not specified';
-                const stars = `${repo.stars}★`;
-                const updated = repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'Recently updated';
-                meta.textContent = `${language} • ${stars} • ${updated}`;
+                descriptionSection.appendChild(descriptionHeading);
+                descriptionSection.appendChild(description);
+                card.appendChild(descriptionSection);
+            }
 
-                const link = this.doc.createElement('a');
-                link.className = 'github-projects__card-link';
-                link.href = repo.url;
-                link.target = '_blank';
-                link.rel = 'noopener';
-                link.textContent = 'View on GitHub';
+            const meta = this.doc.createElement('div');
+            meta.className = 'github-projects__card-meta';
+            const stats = this.doc.createElement('ul');
+            stats.className = 'github-projects__stats';
+            stats.appendChild(this.createStatItem('Language', repo.language || 'Not specified'));
+            if ((repo.stars || 0) > 0) {
+                stats.appendChild(this.createStatItem('Stars', formatNumber(repo.stars)));
+            }
+            if ((repo.forks || 0) > 0) {
+                stats.appendChild(this.createStatItem('Forks', formatNumber(repo.forks)));
+            }
+            if ((repo.openIssues || 0) > 0) {
+                stats.appendChild(this.createStatItem('Open Issues', formatNumber(repo.openIssues)));
+            }
+            if ((repo.watchers || 0) > 0) {
+                stats.appendChild(this.createStatItem('Watchers', formatNumber(repo.watchers)));
+            }
+            stats.appendChild(this.createStatItem('Updated', repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'Recently updated'));
+            meta.appendChild(stats);
 
-                card.appendChild(title);
-                card.appendChild(description);
-                card.appendChild(meta);
-                card.appendChild(link);
+            const readme = this.doc.createElement('div');
+            readme.className = 'github-projects__readme';
+            const readmeHtml = this.renderReadme(repo);
+            if (readmeHtml) {
+                readme.innerHTML = readmeHtml;
+            } else {
+                readme.classList.add('github-projects__readme--empty');
+                if (this.username) {
+                    const fallbackLink = this.doc.createElement('a');
+                    fallbackLink.href = `https://github.com/${this.username}?tab=repositories`;
+                    fallbackLink.target = '_blank';
+                    fallbackLink.rel = 'noopener';
+                    fallbackLink.textContent = 'Explore the full project on GitHub';
+                    readme.appendChild(fallbackLink);
+                }
+            }
 
-                this.container.appendChild(card);
+            const actions = this.doc.createElement('div');
+            actions.className = 'github-projects__links';
+
+            const repoLink = this.doc.createElement('a');
+            repoLink.className = 'github-projects__card-link';
+            repoLink.href = repo.url;
+            repoLink.target = '_blank';
+            repoLink.rel = 'noopener';
+            repoLink.textContent = 'View Repository';
+
+            actions.appendChild(repoLink);
+
+            if (repo.homepage) {
+                const demoLink = this.doc.createElement('a');
+                demoLink.className = 'github-projects__card-link';
+                demoLink.href = repo.homepage;
+                demoLink.target = '_blank';
+                demoLink.rel = 'noopener';
+                demoLink.textContent = 'View Live Site';
+                actions.appendChild(demoLink);
+            }
+
+
+            card.appendChild(title);
+            card.appendChild(meta);
+            card.appendChild(readme);
+            card.appendChild(actions);
+
+            return card;
+        }
+
+        createStatItem(label, value) {
+            const item = this.doc.createElement('li');
+            const labelSpan = this.doc.createElement('span');
+            labelSpan.className = 'github-projects__stat-label';
+            labelSpan.textContent = `${label}:`;
+            const valueSpan = this.doc.createElement('span');
+            valueSpan.className = 'github-projects__stat-value';
+            valueSpan.textContent = value;
+            item.appendChild(labelSpan);
+            item.appendChild(valueSpan);
+            return item;
+        }
+
+        renderReadme(repo) {
+            if (!repo || !repo.readmeRaw) {
+                return null;
+            }
+            return this.markdownRenderer.render(repo.readmeRaw, {
+                maxLength: 1400,
+                baseRawUrl: repo.readmeRawBaseUrl,
+                baseHtmlUrl: repo.readmeHtmlBaseUrl
             });
+        }
+    }
+
+    class MarkdownRenderer {
+        constructor({ doc } = {}) {
+            this.doc = doc || (typeof document !== 'undefined' ? document : null);
+            const globalMarked = typeof globalThis !== 'undefined' && globalThis.marked ? globalThis.marked : null;
+            if (globalMarked && typeof globalMarked.parse === 'function') {
+                this.parseMarkdown = (markdown) => globalMarked.parse(markdown, {
+                    mangle: false,
+                    headerIds: false,
+                    breaks: true
+                });
+            } else if (typeof globalMarked === 'function') {
+                this.parseMarkdown = (markdown) => globalMarked(markdown, {
+                    mangle: false,
+                    headerIds: false,
+                    breaks: true
+                });
+            } else {
+                this.parseMarkdown = (markdown) => this.basicMarkdown(markdown);
+            }
+        }
+
+        render(markdown, options = {}) {
+            if (!markdown || typeof markdown !== 'string') {
+                return null;
+            }
+
+            const parsed = this.parseMarkdown(markdown);
+            if (!this.doc) {
+                return parsed;
+            }
+
+            const sanitized = this.sanitize(parsed, options);
+            if (!sanitized) {
+                return null;
+            }
+
+            if (Number.isFinite(options.maxLength)) {
+                return this.truncate(sanitized, options.maxLength);
+            }
+
+            return sanitized;
+        }
+
+        basicMarkdown(markdown) {
+            const escaped = markdown
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            return `<p>${escaped.replace(/\r?\n\r?\n/g, '</p><p>')}</p>`;
+        }
+
+        sanitize(html, context = {}) {
+            if (!this.doc) {
+                return html;
+            }
+
+            const container = this.doc.createElement('div');
+            container.innerHTML = html;
+            const allowedTags = new Set([
+                'a', 'p', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'blockquote',
+                'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br', 'hr', 'img'
+            ]);
+            const allowedAttributes = {
+                a: new Set(['href', 'title']),
+                img: new Set(['src', 'alt', 'title'])
+            };
+
+            const stack = [container];
+            while (stack.length > 0) {
+                const node = stack.pop();
+                for (let child = node.firstChild; child; ) {
+                    const nextSibling = child.nextSibling;
+                    if (child.nodeType === 8) {
+                        node.removeChild(child);
+                    } else if (child.nodeType === 1) {
+                        const tagName = child.tagName.toLowerCase();
+                        if (!allowedTags.has(tagName)) {
+                            this.unwrapNode(child);
+                        } else {
+                            this.sanitizeAttributes(child, tagName, allowedAttributes, context);
+                            stack.push(child);
+                        }
+                    } else {
+                        stack.push(child);
+                    }
+                    child = nextSibling;
+                }
+            }
+
+            return container.innerHTML.trim();
+        }
+
+        sanitizeAttributes(element, tagName, allowedAttributes, context) {
+            for (let i = element.attributes.length - 1; i >= 0; i -= 1) {
+                const attr = element.attributes[i];
+                const attrName = attr.name.toLowerCase();
+                if (attrName.startsWith('on') || attrName === 'style') {
+                    element.removeAttribute(attr.name);
+                    continue;
+                }
+
+                const allowed = allowedAttributes[tagName];
+                if (allowed && !allowed.has(attrName)) {
+                    element.removeAttribute(attr.name);
+                }
+            }
+
+            if (tagName === 'a') {
+                const safeHref = this.rewriteLink(element.getAttribute('href'), context.baseHtmlUrl);
+                if (!safeHref) {
+                    this.unwrapNode(element);
+                    return;
+                }
+                element.setAttribute('href', safeHref);
+                element.setAttribute('target', '_blank');
+                element.setAttribute('rel', 'noopener');
+            } else if (tagName === 'img') {
+                const safeSrc = this.rewriteMedia(element.getAttribute('src'), context.baseRawUrl);
+                if (!safeSrc) {
+                    element.parentNode.removeChild(element);
+                    return;
+                }
+                element.setAttribute('src', safeSrc);
+                element.setAttribute('loading', 'lazy');
+                element.setAttribute('decoding', 'async');
+            }
+        }
+
+        rewriteLink(href, baseHtmlUrl) {
+            if (!href) {
+                return null;
+            }
+            const trimmed = href.trim();
+            if (!trimmed) {
+                return null;
+            }
+            if (/^javascript:/i.test(trimmed)) {
+                return null;
+            }
+            if (trimmed.startsWith('#')) {
+                return trimmed;
+            }
+            try {
+                return new URL(trimmed, baseHtmlUrl || undefined).toString();
+            } catch (error) {
+                if (/^https?:/i.test(trimmed) || /^mailto:/i.test(trimmed)) {
+                    return trimmed;
+                }
+                return null;
+            }
+        }
+
+        rewriteMedia(src, baseRawUrl) {
+            if (!src) {
+                return null;
+            }
+            const trimmed = src.trim();
+            if (/^javascript:/i.test(trimmed)) {
+                return null;
+            }
+            if (/^https?:/i.test(trimmed) || /^data:image\//i.test(trimmed)) {
+                return trimmed;
+            }
+            try {
+                return new URL(trimmed, baseRawUrl || undefined).toString();
+            } catch (error) {
+                return null;
+            }
+        }
+
+        unwrapNode(element) {
+            const parent = element.parentNode;
+            if (!parent) {
+                return;
+            }
+            while (element.firstChild) {
+                parent.insertBefore(element.firstChild, element);
+            }
+            parent.removeChild(element);
+        }
+
+        truncate(html, limit) {
+            if (!this.doc || !Number.isFinite(limit)) {
+                return html;
+            }
+            const container = this.doc.createElement('div');
+            container.innerHTML = html;
+            let total = 0;
+            const showText = (this.doc.defaultView && this.doc.defaultView.NodeFilter && this.doc.defaultView.NodeFilter.SHOW_TEXT)
+                || (typeof NodeFilter !== 'undefined' ? NodeFilter.SHOW_TEXT : 4);
+            const walker = this.doc.createTreeWalker(container, showText);
+            const nodesToRemove = [];
+
+            while (true) {
+                const node = walker.nextNode();
+                if (!node) {
+                    break;
+                }
+                const text = node.textContent || '';
+                if (!text.trim()) {
+                    continue;
+                }
+
+                if (total + text.length > limit) {
+                    const allowed = limit - total;
+                    if (allowed > 0) {
+                        node.textContent = text.slice(0, allowed).trimEnd() + '…';
+                    } else {
+                        nodesToRemove.push(node);
+                    }
+                    this.collectFollowingNodes(node, container, nodesToRemove);
+                    break;
+                }
+                total += text.length;
+            }
+
+            nodesToRemove.forEach((node) => {
+                if (node.parentNode) {
+                    node.parentNode.removeChild(node);
+                }
+            });
+
+            return container.innerHTML;
+        }
+
+        collectFollowingNodes(node, root, bucket) {
+            let current = node;
+            while (current && current !== root) {
+                let sibling = current.nextSibling;
+                while (sibling) {
+                    bucket.push(sibling);
+                    sibling = sibling.nextSibling;
+                }
+                current = current.parentNode;
+            }
         }
     }
 
@@ -223,7 +815,7 @@
         async init() {
             try {
                 const containerElement = this.getContainer();
-                this.renderer = this.renderer || new RepoRenderer(containerElement);
+                this.renderer = this.renderer || new RepoRenderer(containerElement, { username: this.username });
                 this.apiClient = this.apiClient || new GitHubApiClient(this.username);
 
                 this.renderer.renderLoading();
@@ -232,8 +824,8 @@
             } catch (error) {
                 const containerElement = this.safeGetContainer();
                 if (containerElement) {
-                    const fallbackRenderer = this.renderer || new RepoRenderer(containerElement);
-                    fallbackRenderer.renderError('Unable to load GitHub projects right now. Please try again later.');
+                    const fallbackRenderer = this.renderer || new RepoRenderer(containerElement, { username: this.username });
+                    fallbackRenderer.renderError({ showLink: true });
                 }
                 console.error('[GitHubProjects] Unable to initialize GitHub project section.', error);
             }
@@ -271,10 +863,83 @@
         }
     }
 
+    function decodeReadmeContent(content, encoding) {
+        if (typeof content !== 'string') {
+            return null;
+        }
+
+        if (encoding === 'base64') {
+            try {
+                return decodeBase64(content);
+            } catch (error) {
+                console.warn('[GitHubProjects] Failed to decode base64 README content.', error);
+                return null;
+            }
+        }
+
+        return content;
+    }
+
+    function decodeBase64(input) {
+        if (typeof input !== 'string') {
+            throw new TypeError('input must be a base64 encoded string');
+        }
+
+        if (typeof Buffer !== 'undefined') {
+            return Buffer.from(input, 'base64').toString('utf8');
+        }
+
+        if (typeof globalThis.atob === 'function') {
+            const binary = globalThis.atob(input);
+            const length = binary.length;
+            const bytes = new Uint8Array(length);
+            for (let i = 0; i < length; i += 1) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            if (typeof TextDecoder !== 'undefined') {
+                return new TextDecoder('utf-8').decode(bytes);
+            }
+            let result = '';
+            for (let i = 0; i < bytes.length; i += 1) {
+                result += String.fromCharCode(bytes[i]);
+            }
+            return result;
+        }
+
+        throw new Error('Base64 decoding is not supported in this environment.');
+    }
+
+    function deriveBaseUrl(url) {
+        if (typeof url !== 'string') {
+            return null;
+        }
+        const trimmed = url.trim();
+        if (!trimmed) {
+            return null;
+        }
+        const lastSlash = trimmed.lastIndexOf('/');
+        if (lastSlash === -1) {
+            return null;
+        }
+        return trimmed.slice(0, lastSlash + 1);
+    }
+
+    function formatNumber(value) {
+        if (!Number.isFinite(value)) {
+            return '0';
+        }
+        if (value >= 1000) {
+            return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+        }
+        return String(value);
+    }
+
     const exported = {
         RepositoryNormalizer,
         GitHubApiClient,
+        MarkdownRenderer,
         RepoRenderer,
+        RepoCarousel,
         RepoSectionController
     };
 

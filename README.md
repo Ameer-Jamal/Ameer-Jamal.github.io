@@ -21,16 +21,4 @@ A big shoutout to the amazing resources that helped in crafting this website:
   - [jQuery](https://jquery.com)
   - [Responsive Tools](https://github.com/ajlkn/responsive-tools)
 
-Feel free to dive into the code, and explore the website! Your feedback and contributions are always welcomed. Let's make this space even better, together! 🚀
 
----
-
-🔗 **Quick Links**:
-- [Live Demo](your-website-link-here)
-- [Project Board](your-project-board-link-here)
-- [Issue Tracker](your-issue-tracker-link-here)
-- [Contributing Guidelines](your-contributing-guidelines-link-here)
-
----
-
-_Enjoy exploring the repo, and happy coding :) !_ 🎉

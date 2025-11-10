@@ -76,6 +76,192 @@ function submitAndResetForm() {
 
 			}
 
+		// Ensure hash navigation always fires, regardless of CSS/JS embellishments.
+			$nav.find('a[href^="#"]').on('click', function(event) {
+				var $link = $(this);
+				var targetHash = $link.attr('href');
+				if (!targetHash || targetHash.length < 2) {
+					return;
+				}
+				event.preventDefault();
+				event.stopPropagation();
+				if (location.hash === targetHash) {
+					$main._show(targetHash.substring(1));
+					return;
+				}
+				location.hash = targetHash;
+			});
+
+		initializeNavButtonParallax();
+		initializeLogoParallax();
+
+		function initializeLogoParallax() {
+		if (typeof document === 'undefined') {
+			return;
+		}
+
+		var logoContainer = document.querySelector('#header .logo');
+		var logoImage = document.querySelector('#header .logo .logoImg');
+		if (!logoContainer || !logoImage) {
+			return;
+		}
+
+		var hasFinePointer = typeof window !== 'undefined'
+			&& window.matchMedia
+			&& window.matchMedia('(pointer: fine)').matches;
+
+		if (!hasFinePointer) {
+			return;
+		}
+
+		var supportsPointer = typeof window !== 'undefined' && 'PointerEvent' in window;
+		var scheduleFrame = (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function')
+			? window.requestAnimationFrame.bind(window)
+			: function(callback) { return setTimeout(callback, 0); };
+		var moveEvent = supportsPointer ? 'pointermove' : 'mousemove';
+		var leaveEvent = supportsPointer ? 'pointerleave' : 'mouseleave';
+		var rafHandle = null;
+		var pendingValues = null;
+
+		logoContainer.addEventListener(moveEvent, handleMove, { passive: true });
+		logoContainer.addEventListener(leaveEvent, function() {
+			pendingValues = null;
+			resetLogoState();
+		}, { passive: true });
+
+		function handleMove(event) {
+			if (event.type === 'pointermove' && event.pointerType && event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
+				return;
+			}
+
+			var rect = logoContainer.getBoundingClientRect();
+			var relativeX = ((event.clientX - rect.left) / rect.width) - 0.5;
+			var relativeY = ((event.clientY - rect.top) / rect.height) - 0.5;
+
+			relativeX = Math.max(-0.65, Math.min(relativeX || 0, 0.65));
+			relativeY = Math.max(-0.65, Math.min(relativeY || 0, 0.65));
+
+			var influence = Math.min(Math.abs(relativeX) + Math.abs(relativeY), 1);
+			var rotateX = (-relativeY * 28).toFixed(2);
+			var rotateY = (relativeX * 28).toFixed(2);
+			var depth = (1 - influence) * 42;
+			var scale = 1.035 + (0.035 * (1 - influence));
+
+			pendingValues = {
+				rotateX: rotateX,
+				rotateY: rotateY,
+				depth: depth,
+				scale: scale
+			};
+
+			if (!rafHandle) {
+				rafHandle = (typeof window !== 'undefined' && window.requestAnimationFrame)
+					? window.requestAnimationFrame(applyLogoTransform)
+					: setTimeout(applyLogoTransform, 0);
+			}
+		}
+
+		function applyLogoTransform() {
+			rafHandle = null;
+			if (!pendingValues) {
+				return;
+			}
+			logoImage.style.setProperty('--logoRotateX', pendingValues.rotateX + 'deg');
+			logoImage.style.setProperty('--logoRotateY', pendingValues.rotateY + 'deg');
+			logoImage.style.setProperty('--logoTranslateZ', pendingValues.depth.toFixed(2) + 'px');
+			logoImage.style.setProperty('--logoScale', pendingValues.scale.toFixed(3));
+		}
+
+		function resetLogoState() {
+			logoImage.style.setProperty('--logoRotateX', '0deg');
+			logoImage.style.setProperty('--logoRotateY', '0deg');
+			logoImage.style.setProperty('--logoTranslateZ', '0px');
+			logoImage.style.setProperty('--logoScale', '1');
+		}
+	}
+
+		function initializeNavButtonParallax() {
+		if (typeof document === 'undefined') {
+			return;
+		}
+
+
+		var navButtons = document.querySelectorAll('#header nav ul li a');
+		if (!navButtons.length) {
+			return;
+		}
+
+		var canAnimate = typeof window !== 'undefined'
+			&& window.matchMedia
+			&& window.matchMedia('(pointer: fine)').matches;
+
+		if (!canAnimate) {
+			return;
+		}
+
+		var supportsPointer = typeof window !== 'undefined' && 'PointerEvent' in window;
+		var scheduleFrame = (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function')
+			? window.requestAnimationFrame.bind(window)
+			: function(callback) { return setTimeout(callback, 0); };
+
+		navButtons.forEach(function(button) {
+			resetButtonState(button);
+
+			if (supportsPointer) {
+				button.addEventListener('pointermove', handlePointerMove, { passive: true });
+				button.addEventListener('pointerleave', handlePointerLeave, { passive: true });
+			} else {
+				button.addEventListener('mousemove', handlePointerMove, { passive: true });
+				button.addEventListener('mouseleave', handlePointerLeave, { passive: true });
+			}
+
+			button.addEventListener('blur', function() {
+				resetButtonState(button);
+			});
+		});
+
+		function handlePointerMove(event) {
+			if (event.type === 'pointermove' && event.pointerType && event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
+				return;
+			}
+
+			var target = event.currentTarget;
+			if (!target) {
+				return;
+			}
+
+			var rect = target.getBoundingClientRect();
+			var relativeX = (event.clientX - rect.left) / rect.width;
+			var relativeY = (event.clientY - rect.top) / rect.height;
+
+			relativeX = Math.max(0, Math.min(relativeX || 0, 1));
+			relativeY = Math.max(0, Math.min(relativeY || 0, 1));
+
+			var tiltX = (0.5 - relativeY) * 18;
+			var tiltY = (relativeX - 0.5) * 26;
+
+			scheduleFrame(function() {
+				target.style.setProperty('--glowX', (relativeX * 100).toFixed(2) + '%');
+				target.style.setProperty('--glowY', (relativeY * 100).toFixed(2) + '%');
+				target.style.setProperty('--tiltX', tiltX.toFixed(2) + 'deg');
+				target.style.setProperty('--tiltY', tiltY.toFixed(2) + 'deg');
+			});
+		}
+
+		function handlePointerLeave(event) {
+			if (event && event.currentTarget) {
+				resetButtonState(event.currentTarget);
+			}
+		}
+
+		function resetButtonState(element) {
+			element.style.setProperty('--glowX', '50%');
+			element.style.setProperty('--glowY', '50%');
+			element.style.setProperty('--tiltX', '0deg');
+			element.style.setProperty('--tiltY', '0deg');
+		}
+	}
+
 	// Main.
 		var	delay = 325,
 			locked = false;

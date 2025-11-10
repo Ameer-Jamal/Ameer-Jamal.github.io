@@ -1,6 +1,24 @@
 (function (global) {
     'use strict';
 
+    const isLocalEnv = typeof window !== 'undefined'
+        && window.location
+        && window.location.hostname === 'localhost';
+
+    const noop = () => {};
+    const bindConsole = (method) => {
+        if (!isLocalEnv || typeof console === 'undefined' || typeof console[method] !== 'function') {
+            return noop;
+        }
+        return console[method].bind(console);
+    };
+
+    const logger = {
+        info: bindConsole('info'),
+        warn: bindConsole('warn'),
+        error: bindConsole('error')
+    };
+
     class RepositoryNormalizer {
         static fromPinned(pinnedRepo) {
             if (!pinnedRepo || typeof pinnedRepo !== 'object') {
@@ -69,14 +87,14 @@
             try {
                 const pinnedRepos = await this.fetchPinnedRepositories();
                 if (Array.isArray(pinnedRepos) && pinnedRepos.length > 0) {
-                    console.info('[GitHubProjects] Rendering pinned repositories.', {
+                    logger.info('[GitHubProjects] Rendering pinned repositories.', {
                         username: this.username,
                         total: pinnedRepos.length
                     });
                     repositories = pinnedRepos;
                 }
             } catch (error) {
-                console.warn('[GitHubProjects] Failed to load pinned repositories, falling back to GitHub API.', error);
+                logger.warn('[GitHubProjects] Failed to load pinned repositories, falling back to GitHub API.', error);
             }
 
             if (!repositories.length) {
@@ -87,7 +105,7 @@
             const sorted = this.sortRepositories(filtered);
             const limited = this.applyRepoLimit(sorted);
             const enriched = await this.enrichRepositories(limited);
-            console.info('[GitHubProjects] Rendering GitHub API repositories.', {
+            logger.info('[GitHubProjects] Rendering GitHub API repositories.', {
                 username: this.username,
                 total: enriched.length
             });
@@ -98,7 +116,7 @@
             const url = new URL(this.pinnedServiceUrl);
             url.searchParams.set('username', this.username);
 
-            console.info('[GitHubProjects] Requesting pinned repositories.', {
+            logger.info('[GitHubProjects] Requesting pinned repositories.', {
                 url: url.toString()
             });
 
@@ -106,13 +124,13 @@
             try {
                 response = await this.fetcher(url.toString());
             } catch (error) {
-                console.error('[GitHubProjects] Network error while fetching pinned repositories.', error);
+                logger.error('[GitHubProjects] Network error while fetching pinned repositories.', error);
                 throw error;
             }
             if (!response.ok) {
                 const status = typeof response.status === 'number' ? response.status : 'unknown';
                 const statusText = response.statusText || 'No status text';
-                console.warn('[GitHubProjects] Pinned repositories request failed.', {
+                logger.warn('[GitHubProjects] Pinned repositories request failed.', {
                     status,
                     statusText
                 });
@@ -129,19 +147,19 @@
 
         async fetchFromGitHubApi() {
             const url = `https://api.github.com/users/${this.username}/repos?per_page=100&sort=updated`;
-            console.info('[GitHubProjects] Requesting repositories from GitHub API.', { url });
+            logger.info('[GitHubProjects] Requesting repositories from GitHub API.', { url });
 
             let response;
             try {
                 response = await this.fetcher(url);
             } catch (error) {
-                console.error('[GitHubProjects] Network error while fetching repositories from GitHub API.', error);
+                logger.error('[GitHubProjects] Network error while fetching repositories from GitHub API.', error);
                 throw error;
             }
             if (!response.ok) {
                 const status = typeof response.status === 'number' ? response.status : 'unknown';
                 const statusText = response.statusText || 'No status text';
-                console.error('[GitHubProjects] GitHub API request failed.', {
+                logger.error('[GitHubProjects] GitHub API request failed.', {
                     status,
                     statusText
                 });
@@ -203,7 +221,7 @@
                         readmeHtmlBaseUrl: readme && readme.htmlBaseUrl ? readme.htmlBaseUrl : null
                     });
                 } catch (error) {
-                    console.warn('[GitHubProjects] Unable to load README for repository.', {
+                    logger.warn('[GitHubProjects] Unable to load README for repository.', {
                         repo: repo.name,
                         message: error && error.message ? error.message : 'Unknown error'
                     });
@@ -229,7 +247,7 @@
             const encodedName = encodeURIComponent(repoName);
             const url = `https://api.github.com/repos/${this.username}/${encodedName}/readme`;
 
-            console.info('[GitHubProjects] Requesting repository README.', {
+            logger.info('[GitHubProjects] Requesting repository README.', {
                 username: this.username,
                 repository: repoName,
                 url
@@ -239,14 +257,14 @@
             try {
                 response = await this.fetcher(url);
             } catch (error) {
-                console.error('[GitHubProjects] Network error while fetching README.', {
+                logger.error('[GitHubProjects] Network error while fetching README.', {
                     repository: repoName
                 }, error);
                 throw error;
             }
 
             if (response.status === 404) {
-                console.info('[GitHubProjects] README not found for repository.', {
+                logger.info('[GitHubProjects] README not found for repository.', {
                     repository: repoName
                 });
                 return null;
@@ -327,7 +345,7 @@
             this.container.innerHTML = '';
 
             if (!repositories || repositories.length === 0) {
-                console.info('[GitHubProjects] No repositories available after fetch.', {
+                logger.info('[GitHubProjects] No repositories available after fetch.', {
                     total: repositories ? repositories.length : 0
                 });
                 this.renderError({ message: 'No public projects found just yet. Please check back soon!' });
@@ -827,7 +845,7 @@
                     const fallbackRenderer = this.renderer || new RepoRenderer(containerElement, { username: this.username });
                     fallbackRenderer.renderError({ showLink: true });
                 }
-                console.error('[GitHubProjects] Unable to initialize GitHub project section.', error);
+                logger.error('[GitHubProjects] Unable to initialize GitHub project section.', error);
             }
         }
 
@@ -872,7 +890,7 @@
             try {
                 return decodeBase64(content);
             } catch (error) {
-                console.warn('[GitHubProjects] Failed to decode base64 README content.', error);
+                logger.warn('[GitHubProjects] Failed to decode base64 README content.', error);
                 return null;
             }
         }

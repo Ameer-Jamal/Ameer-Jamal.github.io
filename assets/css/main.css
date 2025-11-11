@@ -1317,7 +1317,10 @@ t
 				left: calc(50% - 1px);
 				width: 1px;
 				height: calc(3.5rem + 1px);
-				background: #ffffff;
+				background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(188, 231, 255, 0.85) 45%, rgba(255, 255, 255, 0) 100%);
+				background-size: 100% 200%;
+				box-shadow: 0 0 15px rgba(138, 220, 255, 0.5);
+				animation: headerLinePulse 10s ease-in-out infinite;
 			}
 
 		#header > :first-child {
@@ -1368,7 +1371,31 @@ t
 			border-top-width: 1px;
 			border-bottom-width: 1px;
 			max-width: 100%;
+			position: relative;
+			border-image: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(154, 219, 255, 0.8), rgba(255, 255, 255, 0.2)) 1;
 		}
+
+			#header .content::before,
+			#header .content::after {
+				content: '';
+				position: absolute;
+				left: 0;
+				right: 0;
+				height: 1px;
+				background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(164, 230, 255, 0.8), rgba(255, 255, 255, 0));
+				background-size: 250% 100%;
+				animation: headerBorderSweep 12s cubic-bezier(0.55, 0.03, 0.31, 0.91) infinite;
+				pointer-events: none;
+			}
+
+			#header .content::before {
+				top: 0;
+			}
+
+			#header .content::after {
+				bottom: 0;
+				animation-delay: 2s;
+			}
 
 			#header .content .inner {
 				-moz-transition: max-height 0.75s ease, padding 0.75s ease, opacity 0.325s ease-in-out;
@@ -1398,8 +1425,9 @@ t
 			}
 
 				#header .content .inner {
-					--hero-aurora-base: linear-gradient(115deg, rgba(255, 255, 255, 0.95) 0%, #d6f4ff 18%, #6dd5ff 38%, #4ec9f0 55%, #58a6ff 72%, rgba(255, 255, 255, 0.98) 100%);
-					--hero-aurora-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='200' viewBox='0 0 600 200'%3E%3Cdefs%3E%3ClinearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='600' y2='0'%3E%3Cstop offset='0' stop-color='%2300f5ff'/%3E%3Cstop offset='0.5' stop-color='%23378bff'/%3E%3Cstop offset='1' stop-color='%23ffffff'/%3E%3C/linearGradient%3E%3Cfilter id='blur' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeGaussianBlur stdDeviation='18'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='600' height='200' fill='url(%23g)' filter='url(%23blur)' opacity='0.7'/%3E%3Ccircle cx='150' cy='140' r='120' fill='url(%23g)' opacity='0.35'/%3E%3Ccircle cx='420' cy='40' r='90' fill='url(%23g)' opacity='0.45'/%3E%3C/svg%3E");
+					--hero-aurora-base: linear-gradient(115deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.98) 22%, #d6f4ff 32%, #6dd5ff 42%, #4ec9f0 58%, #58a6ff 72%, rgba(255, 255, 255, 0.95) 100%);
+					--hero-aurora-highlight: linear-gradient(115deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.85) 35%, rgba(255, 255, 255, 0) 60%);
+					--hero-aurora-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='200' viewBox='0 0 600 200'%3E%3Cdefs%3E%3ClinearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='600' y2='0'%3E%3Cstop offset='0' stop-color='%2300f5ff'/%3E%3Cstop offset='0.5' stop-color='%23378bff'/%3E%3Cstop offset='1' stop-color='%23ffffff'/%3E%3C/linearGradient%3E%3Cfilter id='blur' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeGaussianBlur stdDeviation='18'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='600' height='200' fill='url(%23g)' filter='url(%23blur)' opacity='0.55'/%3E%3Ccircle cx='150' cy='140' r='120' fill='url(%23g)' opacity='0.3'/%3E%3Ccircle cx='420' cy='40' r='90' fill='url(%23g)' opacity='0.35'/%3E%3C/svg%3E");
 				}
 
 					#header .content .inner h1,
@@ -1409,17 +1437,19 @@ t
 						display: block;
 						background-image:
 							var(--hero-aurora-base),
+							var(--hero-aurora-highlight),
 							var(--hero-aurora-svg);
-						background-size: 420% 220%, 800px 200px;
-						background-position: 0% 50%, 0 0;
+						background-size: 420% 220%, 200% 100%, 900px 200px;
+						background-position: -250% 50%, -200% 50%, -200px 0;
 						background-repeat: repeat;
 						-webkit-background-clip: text;
 						background-clip: text;
 						color: transparent;
 						-webkit-text-fill-color: transparent;
-						animation: heroTextAurora 12s linear infinite;
+						animation: heroTextAurora 20s linear infinite;
 						text-shadow: 0 18px 42px rgba(1, 6, 20, 0.8);
-						will-change: background-position;
+						filter: brightness(1.1) saturate(1.05);
+						will-change: background-position, filter;
 					}
 
 			#header .content .inner > p {
@@ -1443,15 +1473,60 @@ t
 
 			@keyframes heroTextAurora {
 				0% {
-					background-position: 0% 50%, 0 0;
+					background-position: -250% 50%, -200% 50%, -200px 0;
+					filter: brightness(1.35) saturate(0);
 				}
-				50% {
-					background-position: 100% 50%, 400px 0;
+				20% {
+					background-position: -250% 50%, -50% 50%, -150px 0;
+					filter: brightness(1.35) saturate(0);
+				}
+				40% {
+					background-position: 0% 50%, 50% 50%, 100px 0;
+					filter: brightness(1.15) saturate(1);
+				}
+				65% {
+					background-position: 120% 50%, 120% 50%, 360px 0;
+					filter: brightness(1.05) saturate(1.2);
 				}
 				100% {
-					background-position: 0% 50%, 800px 0;
+					background-position: 250% 50%, 200% 50%, 600px 0;
+					filter: brightness(1.1) saturate(1.1);
 				}
 			}
+
+		@keyframes headerLinePulse {
+			0% {
+				background-position: 0% 0%;
+				opacity: 0.7;
+			}
+			50% {
+				background-position: 0% 100%;
+				opacity: 1;
+			}
+			100% {
+				background-position: 0% 0%;
+				opacity: 0.7;
+			}
+		}
+
+		@keyframes headerBorderSweep {
+			0% {
+				background-position: 0% 50%;
+				opacity: 0.4;
+			}
+			20% {
+				background-position: 0% 50%;
+				opacity: 0.9;
+			}
+			60% {
+				background-position: 150% 50%;
+				opacity: 0.7;
+			}
+			100% {
+				background-position: 250% 50%;
+				opacity: 0.4;
+			}
+		}
 
 			/* The text under title */
 
@@ -1623,6 +1698,7 @@ t
 		@media (prefers-reduced-motion: reduce) {
 			#header nav ul li a {
 				transition: none;
+				animation: none;
 			}
 
 			#header nav ul li a::after,
@@ -1634,8 +1710,16 @@ t
 			#header .content .inner > p,
 			#header .content .inner .subIntro p {
 				background-position: 50% 50%;
+				filter: none;
 				text-shadow: none;
 			}
+
+			#header > *:before,
+			#header .content::before,
+			#header .content::after {
+				background-position: 50% 50%;
+			}
+
 		}
 
 		#header nav.use-middle:after {

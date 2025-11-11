@@ -200,12 +200,16 @@ function submitAndResetForm() {
 		}
 
 		var supportsPointer = typeof window !== 'undefined' && 'PointerEvent' in window;
-		var scheduleFrame = (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function')
+		var raf = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
 			? window.requestAnimationFrame.bind(window)
-			: function(callback) { return setTimeout(callback, 0); };
+			: function(callback) { return setTimeout(function() { callback(Date.now()); }, 16); };
+		var cancelFrame = typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function'
+			? window.cancelAnimationFrame.bind(window)
+			: function(id) { clearTimeout(id); };
+		var smoothResets = new WeakMap();
 
 		navButtons.forEach(function(button) {
-			resetButtonState(button);
+			applyButtonDynamics(button, 0.5, 0.5);
 
 			if (supportsPointer) {
 				button.addEventListener('pointermove', handlePointerMove, { passive: true });
@@ -216,7 +220,7 @@ function submitAndResetForm() {
 			}
 
 			button.addEventListener('blur', function() {
-				resetButtonState(button);
+				startSmoothReturn(button);
 			});
 		});
 
@@ -230,6 +234,8 @@ function submitAndResetForm() {
 				return;
 			}
 
+			cancelSmoothReturn(target);
+
 			var rect = target.getBoundingClientRect();
 			var relativeX = (event.clientX - rect.left) / rect.width;
 			var relativeY = (event.clientY - rect.top) / rect.height;
@@ -237,28 +243,61 @@ function submitAndResetForm() {
 			relativeX = Math.max(0, Math.min(relativeX || 0, 1));
 			relativeY = Math.max(0, Math.min(relativeY || 0, 1));
 
-			var tiltX = (0.5 - relativeY) * 18;
-			var tiltY = (relativeX - 0.5) * 26;
-
-			scheduleFrame(function() {
-				target.style.setProperty('--glowX', (relativeX * 100).toFixed(2) + '%');
-				target.style.setProperty('--glowY', (relativeY * 100).toFixed(2) + '%');
-				target.style.setProperty('--tiltX', tiltX.toFixed(2) + 'deg');
-				target.style.setProperty('--tiltY', tiltY.toFixed(2) + 'deg');
-			});
+			applyButtonDynamics(target, relativeX, relativeY);
 		}
 
 		function handlePointerLeave(event) {
 			if (event && event.currentTarget) {
-				resetButtonState(event.currentTarget);
+				startSmoothReturn(event.currentTarget);
 			}
 		}
 
-		function resetButtonState(element) {
-			element.style.setProperty('--glowX', '50%');
-			element.style.setProperty('--glowY', '50%');
-			element.style.setProperty('--tiltX', '0deg');
-			element.style.setProperty('--tiltY', '0deg');
+		function startSmoothReturn(target) {
+			cancelSmoothReturn(target);
+
+			var startX = parseFloat(target.dataset.navGlowX || '0.5');
+			var startY = parseFloat(target.dataset.navGlowY || '0.5');
+			var duration = 500;
+			var startTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+			function step(now) {
+				var progress = Math.min((now - startTime) / duration, 1);
+				var eased = 1 - Math.pow(1 - progress, 3);
+				var currentX = startX + (0.5 - startX) * eased;
+				var currentY = startY + (0.5 - startY) * eased;
+				applyButtonDynamics(target, currentX, currentY);
+
+				if (progress < 1) {
+					var frameId = raf(step);
+					smoothResets.set(target, frameId);
+				} else {
+					smoothResets.delete(target);
+				}
+			}
+
+			var frameId = raf(step);
+			smoothResets.set(target, frameId);
+		}
+
+		function cancelSmoothReturn(target) {
+			var frameId = smoothResets.get(target);
+			if (typeof frameId === 'number') {
+				cancelFrame(frameId);
+				smoothResets.delete(target);
+			}
+		}
+
+		function applyButtonDynamics(target, relativeX, relativeY) {
+			var tiltX = (0.5 - relativeY) * 18;
+			var tiltY = (relativeX - 0.5) * 26;
+
+			target.dataset.navGlowX = relativeX.toFixed(4);
+			target.dataset.navGlowY = relativeY.toFixed(4);
+
+			target.style.setProperty('--glowX', (relativeX * 100).toFixed(2) + '%');
+			target.style.setProperty('--glowY', (relativeY * 100).toFixed(2) + '%');
+			target.style.setProperty('--tiltX', tiltX.toFixed(2) + 'deg');
+			target.style.setProperty('--tiltY', tiltY.toFixed(2) + 'deg');
 		}
 	}
 

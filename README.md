@@ -9,6 +9,7 @@ Personal portfolio for showcasing projects, experience, and contact details. The
 - Dynamic "GitHub Highlights" carousel pulls pinned repositories first, then falls back to the GitHub REST API, and renders each README using Marked.
 - README excerpts are sanitized, truncated, and rewritten so that images and links continue to work when embedded.
 - Fully responsive layout optimized for fast loading and accessible navigation.
+- Angular migration lives under `angular/` with the existing markup and scripts preserved.
 
 ---
 
@@ -37,6 +38,15 @@ Personal portfolio for showcasing projects, experience, and contact details. The
 
 The project does not require a build step; all assets are precompiled.
 
+### Angular App (migration)
+The Angular version is in `angular/` and loads the existing scripts after Angular renders the DOM.
+
+```bash
+cd angular
+npm install
+npm run start
+```
+
 ---
 
 ## Testing
@@ -61,6 +71,9 @@ Ensure you are running Node.js 18+ (the repo uses the built-in node:test runner)
 
 ## Deployment
 The `main` branch publishes automatically to GitHub Pages. Pushing to `main` is sufficient to release updates to https://ameer-jamal.github.io.
+
+### Angular Deployment (planned)
+Run `npm run build` inside `angular/` and deploy the contents of `angular/dist/portfolio` to GitHub Pages (either the root of the repo or a `/docs` folder).
 
 ---
 

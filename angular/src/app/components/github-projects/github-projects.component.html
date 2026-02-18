@@ -1,0 +1,47 @@
+<div *ngIf="isLoading" class="github-projects__loader" aria-live="polite" aria-label="Loading GitHub projects">
+  <div class="github-projects__spinner"></div>
+</div>
+
+<p *ngIf="!isLoading && hasError" class="github-projects__status github-projects__status--error">
+  Unable to load GitHub projects right now. Please check back later.
+</p>
+
+<div *ngIf="!isLoading && !hasError && projects.length === 0" class="github-projects__status" aria-live="polite">
+  No public projects are available at the moment.
+</div>
+
+<div *ngIf="!isLoading && !hasError && projects.length > 0" class="github-projects__grid">
+  <article class="github-projects__card" *ngFor="let project of projects">
+    <div>
+      <h4 class="github-projects__card-title">{{ project.name }}</h4>
+      <p class="github-projects__card-description">{{ project.description || 'No description provided.' }}</p>
+    </div>
+
+    <ul class="github-projects__stats">
+      <li>
+        <span class="github-projects__stat-label">Language</span>
+        <span class="github-projects__stat-value">{{ project.language }}</span>
+      </li>
+      <li>
+        <span class="github-projects__stat-label">Stars</span>
+        <span class="github-projects__stat-value">{{ project.stars }}</span>
+      </li>
+      <li>
+        <span class="github-projects__stat-label">Forks</span>
+        <span class="github-projects__stat-value">{{ project.forks }}</span>
+      </li>
+      <li>
+        <span class="github-projects__stat-label">Open Issues</span>
+        <span class="github-projects__stat-value">{{ project.openIssues }}</span>
+      </li>
+      <li>
+        <span class="github-projects__stat-label">Updated</span>
+        <span class="github-projects__stat-value">{{ formatUpdatedDate(project.updatedAt) }}</span>
+      </li>
+    </ul>
+
+    <div class="github-projects__links">
+      <a class="github-projects__card-link" [href]="project.url" target="_blank" rel="noopener noreferrer">View Repository</a>
+    </div>
+  </article>
+</div>

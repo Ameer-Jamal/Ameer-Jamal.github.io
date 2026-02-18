@@ -1,9 +1,24 @@
 import { AfterViewInit, Component } from '@angular/core';
+import { AboutSectionComponent } from './components/about-section/about-section.component';
+import { ContactSectionComponent } from './components/contact-section/contact-section.component';
+import { CvSectionComponent } from './components/cv-section/cv-section.component';
+import { IntroSectionComponent } from './components/intro-section/intro-section.component';
+import { ProjectsSectionComponent } from './components/projects-section/projects-section.component';
+import { SiteFooterComponent } from './components/site-footer/site-footer.component';
+import { SiteHeaderComponent } from './components/site-header/site-header.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [],
+  imports: [
+    SiteHeaderComponent,
+    IntroSectionComponent,
+    ProjectsSectionComponent,
+    AboutSectionComponent,
+    ContactSectionComponent,
+    CvSectionComponent,
+    SiteFooterComponent
+  ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
@@ -22,6 +37,7 @@ export class AppComponent implements AfterViewInit {
     if (typeof document === 'undefined') {
       return;
     }
+
     if (typeof window !== 'undefined' && (window as { __karma__?: unknown }).__karma__) {
       return;
     }
@@ -31,7 +47,6 @@ export class AppComponent implements AfterViewInit {
         await this.loadScript(source);
       }
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error('[Portfolio] Script bootstrap failed.', error);
     }
   }

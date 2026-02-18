@@ -78,7 +78,6 @@ Run `npm run build` inside `angular/` and deploy the contents of `angular/dist/p
 ---
 
 ## Credits
-- [HTML5Up](https://html5up.net) for the base template and responsive tooling.
 - [Unsplash](https://unsplash.com) for royalty-free imagery.
 - [Font Awesome](https://fontawesome.com) for icons.
 - [Marked](https://marked.js.org) for Markdown rendering on the client.

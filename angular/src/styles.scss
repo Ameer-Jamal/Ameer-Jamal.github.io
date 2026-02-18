@@ -1,1 +1,6 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global styles */
+
+.github-projects__grid {
+  display: grid;
+  gap: 1.5rem;
+}

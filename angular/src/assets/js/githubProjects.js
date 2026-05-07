@@ -58,7 +58,10 @@
                 forks: typeof githubRepo.forks_count === 'number' ? githubRepo.forks_count : 0,
                 openIssues: typeof githubRepo.open_issues_count === 'number' ? githubRepo.open_issues_count : 0,
                 watchers: typeof githubRepo.watchers_count === 'number' ? githubRepo.watchers_count : null,
-                defaultBranch: githubRepo.default_branch || null,
+                defaultBranch:
+                    typeof githubRepo.default_branch === 'string' && githubRepo.default_branch !== ''
+                        ? githubRepo.default_branch
+                        : null,
                 homepage: githubRepo.homepage || null,
                 updatedAt: githubRepo.pushed_at || githubRepo.updated_at || null
             };
@@ -229,7 +232,12 @@
                         forks: typeof item.forks === 'number' ? item.forks : 0,
                         openIssues: typeof item.openIssues === 'number' ? item.openIssues : 0,
                         watchers: null,
-                        defaultBranch: null,
+                        defaultBranch:
+                            typeof item.defaultBranch === 'string' && item.defaultBranch !== ''
+                                ? item.defaultBranch
+                                : (typeof item.default_branch === 'string' && item.default_branch !== ''
+                                    ? item.default_branch
+                                    : null),
                         homepage: item.homepage || null,
                         updatedAt: item.updatedAt || null
                     }));
@@ -276,44 +284,117 @@
                 return [];
             }
 
-            const enriched = await Promise.all(repositories.map(async (repo) => {
+            const enriched = [];
+            for (const repo of repositories) {
                 try {
                     const readme = await this.fetchReadme(repo);
-                    return Object.assign({}, repo, {
+                    enriched.push(Object.assign({}, repo, {
                         readmeRaw: readme ? readme.text : null,
                         readmeHtmlUrl: readme && readme.htmlUrl ? readme.htmlUrl : repo.url,
                         readmeRawUrl: readme && readme.rawUrl ? readme.rawUrl : null,
                         readmeRawBaseUrl: readme && readme.rawBaseUrl ? readme.rawBaseUrl : null,
                         readmeHtmlBaseUrl: readme && readme.htmlBaseUrl ? readme.htmlBaseUrl : null
-                    });
+                    }));
                 } catch (error) {
                     logger.warn('[GitHubProjects] Unable to load README for repository.', {
                         repo: repo.name,
                         message: error && error.message ? error.message : 'Unknown error'
                     });
-                    return Object.assign({}, repo, {
+                    enriched.push(Object.assign({}, repo, {
                         readmeRaw: null,
                         readmeHtmlUrl: repo.url,
                         readmeRawUrl: null,
                         readmeRawBaseUrl: null,
                         readmeHtmlBaseUrl: null
-                    });
+                    }));
                 }
-            }));
+            }
 
             return enriched;
         }
 
+        /**
+         * Public repos: load README from raw.githubusercontent.com first (no REST auth → avoids 403 rate limits).
+         * Falls back to REST /readme for uncommon filenames (e.g. README.rst).
+         */
         async fetchReadme(repo) {
             if (!repo || !repo.name) {
                 return null;
             }
 
+            const fromRaw = await this.fetchReadmeFromRaw(repo);
+            if (fromRaw && fromRaw.text) {
+                return fromRaw;
+            }
+
+            return this.fetchReadmeFromApi(repo);
+        }
+
+        async fetchReadmeFromRaw(repo) {
+            const repoName = repo.name;
+            const owner = this.username;
+            const encodedRepo = encodeURIComponent(repoName);
+            const branches = [];
+            if (repo.defaultBranch) {
+                branches.push(repo.defaultBranch);
+            }
+            branches.push('main', 'master');
+            const seenBranch = new Set();
+            const orderedBranches = branches.filter((branch) => {
+                if (!branch || seenBranch.has(branch)) {
+                    return false;
+                }
+                seenBranch.add(branch);
+                return true;
+            });
+
+            const files = ['README.md', 'Readme.md', 'readme.md'];
+
+            for (let bi = 0; bi < orderedBranches.length; bi += 1) {
+                const branch = orderedBranches[bi];
+                const encodedBranch = encodeURIComponent(branch).replace(/%2F/g, '/');
+                for (let fi = 0; fi < files.length; fi += 1) {
+                    const file = files[fi];
+                    const url = `https://raw.githubusercontent.com/${owner}/${encodedRepo}/${encodedBranch}/${file}`;
+                    try {
+                        const response = await this.fetcher(url);
+                        if (!response || !response.ok) {
+                            continue;
+                        }
+                        const text = typeof response.text === 'function'
+                            ? await response.text()
+                            : '';
+                        const trimmed = typeof text === 'string' ? text.trim() : '';
+                        if (!trimmed) {
+                            continue;
+                        }
+                        const rawBase = `https://raw.githubusercontent.com/${owner}/${encodedRepo}/${encodedBranch}/`;
+                        const htmlBase = `https://github.com/${owner}/${encodedRepo}/blob/${encodedBranch}/`;
+                        return {
+                            text: trimmed,
+                            htmlUrl: `${htmlBase}${file}`,
+                            rawUrl: url,
+                            rawBaseUrl: rawBase,
+                            htmlBaseUrl: htmlBase
+                        };
+                    } catch (error) {
+                        logger.warn('[GitHubProjects] Raw README fetch failed.', {
+                            repository: repoName,
+                            url
+                        }, error);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        async fetchReadmeFromApi(repo) {
             const repoName = repo.name;
             const encodedName = encodeURIComponent(repoName);
             const url = `https://api.github.com/repos/${this.username}/${encodedName}/readme`;
 
-            logger.info('[GitHubProjects] Requesting repository README.', {
+            logger.info('[GitHubProjects] Requesting repository README via API.', {
                 username: this.username,
                 repository: repoName,
                 url
@@ -321,16 +402,21 @@
 
             let response;
             try {
-                response = await this.fetcher(url);
+                response = await this.fetcher(url, {
+                    headers: {
+                        Accept: 'application/vnd.github+json',
+                        'X-GitHub-Api-Version': '2022-11-28'
+                    }
+                });
             } catch (error) {
                 logger.error('[GitHubProjects] Network error while fetching README.', {
                     repository: repoName
                 }, error);
-                throw error;
+                return null;
             }
 
             if (response.status === 404) {
-                logger.info('[GitHubProjects] README not found for repository.', {
+                logger.info('[GitHubProjects] README not found via API.', {
                     repository: repoName
                 });
                 return null;
@@ -338,11 +424,23 @@
 
             if (!response.ok) {
                 const status = typeof response.status === 'number' ? response.status : 'unknown';
-                const statusText = response.statusText || 'No status text';
-                throw new Error(`README request failed (${status} ${statusText})`);
+                logger.warn('[GitHubProjects] README API request failed.', {
+                    repository: repoName,
+                    status
+                });
+                return null;
             }
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                logger.warn('[GitHubProjects] Failed to parse README API JSON.', {
+                    repository: repoName
+                }, parseError);
+                return null;
+            }
+
             if (!data || typeof data !== 'object') {
                 return null;
             }
@@ -584,12 +682,12 @@
                 readme.innerHTML = readmeHtml;
             } else {
                 readme.classList.add('github-projects__readme--empty');
-                if (this.username) {
+                if (repo.url && repo.url !== '#') {
                     const fallbackLink = this.doc.createElement('a');
-                    fallbackLink.href = `https://github.com/${this.username}?tab=repositories`;
+                    fallbackLink.href = `${repo.url}#readme`;
                     fallbackLink.target = '_blank';
                     fallbackLink.rel = 'noopener';
-                    fallbackLink.textContent = 'Explore the full project on GitHub';
+                    fallbackLink.textContent = 'View README on GitHub';
                     readme.appendChild(fallbackLink);
                 }
             }

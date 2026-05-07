@@ -78,6 +78,7 @@ describe('mapGitHubRepoToHighlight', () => {
       forks_count: 1,
       open_issues_count: 0,
       pushed_at: '2024-06-01T12:00:00Z',
+      default_branch: 'develop',
     });
     assert.deepEqual(row, {
       name: 'demo',
@@ -88,6 +89,7 @@ describe('mapGitHubRepoToHighlight', () => {
       forks: 1,
       openIssues: 0,
       updatedAt: '2024-06-01T12:00:00Z',
+      defaultBranch: 'develop',
     });
   });
 
@@ -102,6 +104,7 @@ describe('mapGitHubRepoToHighlight', () => {
     assert.equal(row.url, '#');
     assert.equal(row.stars, 0);
     assert.equal(row.updatedAt, null);
+    assert.equal(row.defaultBranch, null);
   });
 });
 

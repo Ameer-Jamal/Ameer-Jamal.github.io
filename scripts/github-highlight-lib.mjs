@@ -36,6 +36,10 @@ export function mapGitHubRepoToHighlight(repo) {
     forks: typeof repo.forks_count === 'number' ? repo.forks_count : 0,
     openIssues: typeof repo.open_issues_count === 'number' ? repo.open_issues_count : 0,
     updatedAt: repo.pushed_at ?? null,
+    defaultBranch:
+      typeof repo.default_branch === 'string' && repo.default_branch !== ''
+        ? repo.default_branch
+        : null,
   };
 }
 

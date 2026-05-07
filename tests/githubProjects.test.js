@@ -52,16 +52,12 @@ describe('GitHubApiClient', () => {
         };
       }
 
-      if (stringUrl.includes('/readme')) {
+      // README is loaded from raw.githubusercontent.com first (avoids REST rate limits in the browser).
+      if (stringUrl.includes('raw.githubusercontent.com') && stringUrl.includes('/PinnedProject/')) {
         return {
           ok: true,
-          async json() {
-            return {
-              content: Buffer.from('# Hello\nThis is a README').toString('base64'),
-              encoding: 'base64',
-              html_url: 'https://github.com/pinned/blob/main/README.md',
-              download_url: 'https://raw.githubusercontent.com/pinned/main/README.md'
-            };
+          async text() {
+            return '# Hello\nThis is a README';
           }
         };
       }
@@ -75,7 +71,7 @@ describe('GitHubApiClient', () => {
     assert.equal(repos[0].name, 'PinnedProject');
     assert.equal(repos[0].stars, 10);
     assert.equal(repos[0].readmeRaw.includes('# Hello'), true);
-    assert.equal(repos[0].readmeHtmlUrl, 'https://github.com/pinned/blob/main/README.md');
+    assert.equal(repos[0].readmeHtmlUrl, 'https://github.com/someone/PinnedProject/blob/main/README.md');
   });
 
   test('falls back to GitHub API when pinned request fails', async () => {
@@ -85,11 +81,16 @@ describe('GitHubApiClient', () => {
     ];
 
     const fetchStub = async (url) => {
-      if (String(url).includes('gh-pinned-repos')) {
+      const stringUrl = String(url);
+      if (stringUrl.includes('gh-pinned-repos')) {
         return { ok: false, async json() { return []; } };
       }
 
-      if (String(url).includes('/readme')) {
+      if (stringUrl.includes('raw.githubusercontent.com')) {
+        return { ok: false, status: 404 };
+      }
+
+      if (stringUrl.includes('/readme')) {
         return {
           ok: true,
           async json() {
@@ -126,11 +127,16 @@ describe('GitHubApiClient', () => {
     ];
 
     const fetchStub = async (url) => {
-      if (String(url).includes('gh-pinned-repos')) {
+      const stringUrl = String(url);
+      if (stringUrl.includes('gh-pinned-repos')) {
         return { ok: false, async json() { return []; } };
       }
 
-      if (String(url).includes('/readme')) {
+      if (stringUrl.includes('raw.githubusercontent.com')) {
+        return { ok: false, status: 404 };
+      }
+
+      if (stringUrl.includes('/readme')) {
         return { status: 404, ok: false, async json() { return {}; } };
       }
 
@@ -158,30 +164,30 @@ describe('GitHubApiClient', () => {
     ];
 
     const fetchStub = async (url) => {
-      if (String(url).includes('gh-pinned-repos')) {
+      const stringUrl = String(url);
+      if (stringUrl.includes('gh-pinned-repos')) {
         return { ok: false, async json() { return []; } };
       }
 
-      if (String(url).includes('/readme')) {
+      if (stringUrl.includes('api.github.com/users/') && stringUrl.includes('/repos')) {
         return {
           ok: true,
           async json() {
-            return {
-              content: Buffer.from('Visible README content').toString('base64'),
-              encoding: 'base64',
-              html_url: 'https://github.com/Ameer-Jamal/shown/blob/main/README.md',
-              download_url: 'https://raw.githubusercontent.com/Ameer-Jamal/shown/main/README.md'
-            };
+            return githubPayload;
           }
         };
       }
 
-      return {
-        ok: true,
-        async json() {
-          return githubPayload;
-        }
-      };
+      if (stringUrl.includes('raw.githubusercontent.com') && stringUrl.includes('/ShownProject/')) {
+        return {
+          ok: true,
+          async text() {
+            return 'Visible README content';
+          }
+        };
+      }
+
+      throw new Error(`Unexpected URL in fetchStub: ${url}`);
     };
 
     const client = new GitHubApiClient('Ameer-Jamal', { fetch: fetchStub });

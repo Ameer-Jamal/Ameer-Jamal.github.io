@@ -5,6 +5,9 @@ on:
     branches:
       - main
   workflow_dispatch:
+  schedule:
+    # Weekly: rebuild Pages so carousel fallback JSON stays fresh without a code push
+    - cron: '0 6 * * 1'
 
 permissions:
   contents: read
@@ -29,9 +32,21 @@ jobs:
           cache: npm
           cache-dependency-path: angular/package-lock.json
 
+      - name: Unit tests (GitHub highlights + scripts)
+        run: npm test
+
       - name: Install dependencies
         working-directory: angular
         run: npm ci
+
+      - name: Refresh GitHub highlights JSON
+        env:
+          # Optional: create repo secret GH_PAT with repo read scope for higher API limits.
+          # If unset, GITHUB_TOKEN from this workflow is used (enough for public repos).
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: node scripts/refresh-github-highlights.mjs
 
       - name: Build
         working-directory: angular

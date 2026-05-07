@@ -1,0 +1,21 @@
+/* Footer icon row: undo accidental .contact typography on ul, center glyphs, breathing room for license */
+:host #footer {
+  padding-bottom: 1.25rem;
+}
+
+:host #footer ul.icons {
+  margin-bottom: 0.6rem;
+}
+
+:host #footer ul.icons li a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  line-height: 1;
+}
+
+:host #footer ul.icons li a .icon {
+  line-height: 1;
+}

@@ -1917,6 +1917,41 @@ t
 				
 			}
 
+			#main article#CV {
+				width: min(72rem, calc(100vw - 2rem));
+				max-width: calc(100vw - 2rem);
+			}
+			#main article#CV .cv-embed {
+				position: relative;
+				width: 100%;
+				margin-top: 1.25rem;
+				border-radius: calc(4px + 2px);
+				overflow: hidden;
+				box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.075), 0 1rem 3rem rgba(0, 0, 0, 0.35);
+				background: #000000;
+			}
+			#main article#CV .cv-embed iframe {
+				display: block;
+				width: 100%;
+				min-height: 56rem;
+				border: 0;
+			}
+			#main article#CV .cv-embed-caption {
+				text-align: center;
+				margin-top: 1rem;
+				font-size: 0.8rem;
+				letter-spacing: 0.15rem;
+				color: rgba(255, 255, 255, 0.5);
+			}
+			#main article#CV .cv-embed-caption a {
+				color: inherit;
+				border-bottom: dotted 1px rgba(255, 255, 255, 0.5);
+			}
+			#main article#CV .cv-embed-caption a:hover {
+				color: #ffffff;
+				border-bottom-color: #ffffff;
+			}
+
 			#main article .close {
 				display: block;
 				position: absolute;
@@ -1971,6 +2006,13 @@ t
 					width: 2.25rem;
 					height: 2.25rem;
 					background-size: 14px 14px;
+				}
+
+				#main article#CV .cv-embed {
+					border-radius: 4px;
+				}
+				#main article#CV .cv-embed iframe {
+					min-height: 72vh;
 				}
 
 		}

@@ -98,7 +98,21 @@
             }
 
             if (!repositories.length) {
-                repositories = await this.fetchFromGitHubApi();
+                try {
+                    repositories = await this.fetchFromGitHubApi();
+                } catch (apiError) {
+                    logger.warn('[GitHubProjects] GitHub API request failed; will try static fallback.', apiError);
+                }
+            }
+
+            if (!repositories.length) {
+                const fallbackRepos = await this.fetchStaticFallbackRepositories();
+                if (fallbackRepos.length > 0) {
+                    logger.info('[GitHubProjects] Using static fallback repository list.', {
+                        total: fallbackRepos.length
+                    });
+                    repositories = fallbackRepos;
+                }
             }
 
             const filtered = this.filterExcluded(repositories);
@@ -151,7 +165,12 @@
 
             let response;
             try {
-                response = await this.fetcher(url);
+                response = await this.fetcher(url, {
+                    headers: {
+                        Accept: 'application/vnd.github+json',
+                        'X-GitHub-Api-Version': '2022-11-28'
+                    }
+                });
             } catch (error) {
                 logger.error('[GitHubProjects] Network error while fetching repositories from GitHub API.', error);
                 throw error;
@@ -173,6 +192,53 @@
 
             const filtered = data.filter((repo) => !repo.fork);
             return filtered.map((repo) => RepositoryNormalizer.fromGitHub(repo));
+        }
+
+        async fetchStaticFallbackRepositories() {
+            const paths = ['assets/data/github-highlight-repos.json'];
+            for (const relativePath of paths) {
+                let resolvedUrl = relativePath;
+                try {
+                    if (typeof global.location !== 'undefined' && global.location && global.location.href) {
+                        resolvedUrl = new URL(relativePath, global.location.href).toString();
+                    }
+                } catch (parseError) {
+                    logger.warn('[GitHubProjects] Could not resolve fallback URL.', parseError);
+                }
+
+                try {
+                    const response = await this.fetcher(resolvedUrl);
+                    if (!response.ok) {
+                        logger.warn('[GitHubProjects] Fallback file request failed.', {
+                            status: response.status,
+                            url: resolvedUrl
+                        });
+                        continue;
+                    }
+                    const data = await response.json();
+                    if (!Array.isArray(data) || data.length === 0) {
+                        continue;
+                    }
+
+                    return data.map((item) => ({
+                        name: item.name || 'Untitled Project',
+                        description: typeof item.description === 'string' ? item.description : '',
+                        language: item.language || 'Not specified',
+                        url: item.url || '#',
+                        stars: typeof item.stars === 'number' ? item.stars : 0,
+                        forks: typeof item.forks === 'number' ? item.forks : 0,
+                        openIssues: typeof item.openIssues === 'number' ? item.openIssues : 0,
+                        watchers: null,
+                        defaultBranch: null,
+                        homepage: item.homepage || null,
+                        updatedAt: item.updatedAt || null
+                    }));
+                } catch (error) {
+                    logger.warn('[GitHubProjects] Unable to load static fallback repositories.', error);
+                }
+            }
+
+            return [];
         }
 
         sortRepositories(repositories = []) {
@@ -873,12 +939,17 @@
         controller.init();
     }
 
-    if (typeof document !== 'undefined') {
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeProjectsSection);
+    function scheduleInitializeProjectsSection() {
+        const run = () => initializeProjectsSection();
+        if (typeof document !== 'undefined' && document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => setTimeout(run, 0));
         } else {
-            initializeProjectsSection();
+            setTimeout(run, 0);
         }
+    }
+
+    if (typeof document !== 'undefined') {
+        scheduleInitializeProjectsSection();
     }
 
     function decodeReadmeContent(content, encoding) {

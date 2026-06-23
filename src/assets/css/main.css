@@ -2446,6 +2446,35 @@ t
         overflow-wrap: anywhere;
 }
 
+.github-projects__stats--compact {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem 0.5rem;
+}
+
+.github-projects__stats--compact li {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.25rem 0.5rem;
+}
+
+.github-projects__stats--compact .github-projects__stat-label {
+        display: none;
+}
+
+.github-projects__stats--compact .github-projects__stat-value {
+        display: inline;
+        font-size: 0.75rem;
+        font-weight: 600;
+}
+
+.github-projects__stat-icon {
+        font-size: 0.65rem;
+        color: rgba(255, 255, 255, 0.55);
+}
+
 .github-projects__readme {
         color: rgba(255, 255, 255, 0.75);
         font-size: 0.82rem;

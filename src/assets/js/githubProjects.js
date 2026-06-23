@@ -316,8 +316,7 @@
                         readmeHtmlBaseUrl: readme && readme.htmlBaseUrl ? readme.htmlBaseUrl : null
                     }));
                 } catch (error) {
-                    logger.warn('[GitHubProjects] Unable to load README for repository.', {
-                        repo: repo.name,
+                    logger.warn('[GitHubProjects] Unable to load README for a repository.', {
                         message: error && error.message ? error.message : 'Unknown error'
                     });
                     enriched.push(Object.assign({}, repo, {
@@ -335,7 +334,7 @@
 
         /**
          * Public repos: load README from raw.githubusercontent.com first (no REST auth → avoids 403 rate limits).
-         * Falls back to REST /readme for uncommon filenames (e.g. README.rst).
+         * Falls back to REST /readme only on non-404 failures (e.g. rate limits, uncommon filenames).
          */
         async fetchReadme(repo) {
             if (!repo || !repo.name) {
@@ -346,6 +345,9 @@
             if (fromRaw && fromRaw.text) {
                 return fromRaw;
             }
+            if (fromRaw && fromRaw.notFound) {
+                return null;
+            }
 
             return this.fetchReadmeFromApi(repo);
         }
@@ -354,71 +356,47 @@
             const repoName = repo.name;
             const owner = this.username;
             const encodedRepo = encodeURIComponent(repoName);
-            const branches = [];
-            if (repo.defaultBranch) {
-                branches.push(repo.defaultBranch);
-            }
-            branches.push('main', 'master');
-            const seenBranch = new Set();
-            const orderedBranches = branches.filter((branch) => {
-                if (!branch || seenBranch.has(branch)) {
-                    return false;
+            const branch = repo.defaultBranch || 'main';
+            const file = 'README.md';
+            const encodedBranch = encodeURIComponent(branch).replace(/%2F/g, '/');
+            const url = `https://raw.githubusercontent.com/${owner}/${encodedRepo}/${encodedBranch}/${file}`;
+
+            try {
+                const response = await this.fetcher(url);
+                if (!response) {
+                    return null;
                 }
-                seenBranch.add(branch);
-                return true;
-            });
-
-            const files = ['README.md', 'Readme.md', 'readme.md'];
-
-            for (let bi = 0; bi < orderedBranches.length; bi += 1) {
-                const branch = orderedBranches[bi];
-                const encodedBranch = encodeURIComponent(branch).replace(/%2F/g, '/');
-                for (let fi = 0; fi < files.length; fi += 1) {
-                    const file = files[fi];
-                    const url = `https://raw.githubusercontent.com/${owner}/${encodedRepo}/${encodedBranch}/${file}`;
-                    try {
-                        const response = await this.fetcher(url);
-                        if (!response || !response.ok) {
-                            continue;
-                        }
-                        const text = typeof response.text === 'function'
-                            ? await response.text()
-                            : '';
-                        const trimmed = typeof text === 'string' ? text.trim() : '';
-                        if (!trimmed) {
-                            continue;
-                        }
-                        const rawBase = `https://raw.githubusercontent.com/${owner}/${encodedRepo}/${encodedBranch}/`;
-                        const htmlBase = `https://github.com/${owner}/${encodedRepo}/blob/${encodedBranch}/`;
-                        return {
-                            text: trimmed,
-                            htmlUrl: `${htmlBase}${file}`,
-                            rawUrl: url,
-                            rawBaseUrl: rawBase,
-                            htmlBaseUrl: htmlBase
-                        };
-                    } catch (error) {
-                        logger.warn('[GitHubProjects] Raw README fetch failed.', {
-                            repository: repoName,
-                            url
-                        }, error);
-                    }
+                if (response.status === 404) {
+                    return { notFound: true };
                 }
+                if (!response.ok) {
+                    return null;
+                }
+                const text = typeof response.text === 'function'
+                    ? await response.text()
+                    : '';
+                const trimmed = typeof text === 'string' ? text.trim() : '';
+                if (!trimmed) {
+                    return { notFound: true };
+                }
+                const rawBase = `https://raw.githubusercontent.com/${owner}/${encodedRepo}/${encodedBranch}/`;
+                const htmlBase = `https://github.com/${owner}/${encodedRepo}/blob/${encodedBranch}/`;
+                return {
+                    text: trimmed,
+                    htmlUrl: `${htmlBase}${file}`,
+                    rawUrl: url,
+                    rawBaseUrl: rawBase,
+                    htmlBaseUrl: htmlBase
+                };
+            } catch (_error) {
+                return null;
             }
-
-            return null;
         }
 
         async fetchReadmeFromApi(repo) {
             const repoName = repo.name;
             const encodedName = encodeURIComponent(repoName);
             const url = `https://api.github.com/repos/${this.username}/${encodedName}/readme`;
-
-            logger.info('[GitHubProjects] Requesting repository README via API.', {
-                username: this.username,
-                repository: repoName,
-                url
-            });
 
             let response;
             try {
@@ -428,36 +406,18 @@
                         'X-GitHub-Api-Version': '2022-11-28'
                     }
                 });
-            } catch (error) {
-                logger.error('[GitHubProjects] Network error while fetching README.', {
-                    repository: repoName
-                }, error);
+            } catch (_error) {
                 return null;
             }
 
-            if (response.status === 404) {
-                logger.info('[GitHubProjects] README not found via API.', {
-                    repository: repoName
-                });
-                return null;
-            }
-
-            if (!response.ok) {
-                const status = typeof response.status === 'number' ? response.status : 'unknown';
-                logger.warn('[GitHubProjects] README API request failed.', {
-                    repository: repoName,
-                    status
-                });
+            if (response.status === 404 || !response.ok) {
                 return null;
             }
 
             let data;
             try {
                 data = await response.json();
-            } catch (parseError) {
-                logger.warn('[GitHubProjects] Failed to parse README API JSON.', {
-                    repository: repoName
-                }, parseError);
+            } catch (_parseError) {
                 return null;
             }
 
@@ -738,20 +698,7 @@
             meta.className = 'github-projects__card-meta';
             const stats = this.doc.createElement('ul');
             stats.className = 'github-projects__stats';
-            stats.appendChild(this.createStatItem('Language', repo.language || 'Not specified'));
-            if ((repo.stars || 0) > 0) {
-                stats.appendChild(this.createStatItem('Stars', formatNumber(repo.stars)));
-            }
-            if ((repo.forks || 0) > 0) {
-                stats.appendChild(this.createStatItem('Forks', formatNumber(repo.forks)));
-            }
-            if ((repo.openIssues || 0) > 0) {
-                stats.appendChild(this.createStatItem('Open Issues', formatNumber(repo.openIssues)));
-            }
-            if ((repo.watchers || 0) > 0) {
-                stats.appendChild(this.createStatItem('Watchers', formatNumber(repo.watchers)));
-            }
-            stats.appendChild(this.createStatItem('Updated', repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'Recently updated'));
+            this.appendRepoStats(stats, repo, { compact: this.isMobileCarousel() });
             meta.appendChild(stats);
 
             const readme = this.doc.createElement('div');
@@ -929,20 +876,7 @@
 
             const stats = this.doc.createElement('ul');
             stats.className = 'github-projects__stats github-projects__stats--expanded';
-            stats.appendChild(this.createStatItem('Language', repo.language || 'Not specified'));
-            if ((repo.stars || 0) > 0) {
-                stats.appendChild(this.createStatItem('Stars', formatNumber(repo.stars)));
-            }
-            if ((repo.forks || 0) > 0) {
-                stats.appendChild(this.createStatItem('Forks', formatNumber(repo.forks)));
-            }
-            if ((repo.openIssues || 0) > 0) {
-                stats.appendChild(this.createStatItem('Open Issues', formatNumber(repo.openIssues)));
-            }
-            if ((repo.watchers || 0) > 0) {
-                stats.appendChild(this.createStatItem('Watchers', formatNumber(repo.watchers)));
-            }
-            stats.appendChild(this.createStatItem('Updated', repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'Recently updated'));
+            this.appendRepoStats(stats, repo, { compact: false });
 
             const readme = this.doc.createElement('div');
             readme.className = 'github-projects__readme github-projects__readme--expanded';
@@ -1017,6 +951,41 @@
             return badge;
         }
 
+        appendRepoStats(statsEl, repo, options = {}) {
+            const compact = Boolean(options.compact);
+            if (compact) {
+                statsEl.classList.add('github-projects__stats--compact');
+            }
+
+            if (!compact) {
+                statsEl.appendChild(this.createStatItem('Language', repo.language || 'Not specified'));
+            }
+            if ((repo.stars || 0) > 0) {
+                statsEl.appendChild(compact
+                    ? this.createCompactStatItem('fa-star', `${formatNumber(repo.stars)} stars`, formatNumber(repo.stars))
+                    : this.createStatItem('Stars', formatNumber(repo.stars)));
+            }
+            if ((repo.forks || 0) > 0) {
+                statsEl.appendChild(compact
+                    ? this.createCompactStatItem('fa-code-branch', `${formatNumber(repo.forks)} forks`, formatNumber(repo.forks))
+                    : this.createStatItem('Forks', formatNumber(repo.forks)));
+            }
+            if ((repo.openIssues || 0) > 0) {
+                statsEl.appendChild(compact
+                    ? this.createCompactStatItem('fa-exclamation-circle', `${formatNumber(repo.openIssues)} open issues`, formatNumber(repo.openIssues))
+                    : this.createStatItem('Open Issues', formatNumber(repo.openIssues)));
+            }
+            if ((repo.watchers || 0) > 0) {
+                statsEl.appendChild(compact
+                    ? this.createCompactStatItem('fa-eye', `${formatNumber(repo.watchers)} watchers`, formatNumber(repo.watchers))
+                    : this.createStatItem('Watchers', formatNumber(repo.watchers)));
+            }
+            const updatedValue = repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'Recently updated';
+            statsEl.appendChild(compact
+                ? this.createCompactStatItem('fa-clock', `Updated ${updatedValue}`, updatedValue)
+                : this.createStatItem('Updated', updatedValue));
+        }
+
         createStatItem(label, value) {
             const item = this.doc.createElement('li');
             const labelSpan = this.doc.createElement('span');
@@ -1026,6 +995,20 @@
             valueSpan.className = 'github-projects__stat-value';
             valueSpan.textContent = value;
             item.appendChild(labelSpan);
+            item.appendChild(valueSpan);
+            return item;
+        }
+
+        createCompactStatItem(iconClass, ariaLabel, value) {
+            const item = this.doc.createElement('li');
+            item.setAttribute('aria-label', ariaLabel);
+            const icon = this.doc.createElement('span');
+            icon.className = `fas ${iconClass} github-projects__stat-icon`;
+            icon.setAttribute('aria-hidden', 'true');
+            const valueSpan = this.doc.createElement('span');
+            valueSpan.className = 'github-projects__stat-value';
+            valueSpan.textContent = value;
+            item.appendChild(icon);
             item.appendChild(valueSpan);
             return item;
         }

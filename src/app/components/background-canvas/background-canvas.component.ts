@@ -1,9 +1,18 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import {
+  downgradeTier,
+  getProfileForTier,
+  PerformanceProfile,
+  PerformanceTier,
+  resolvePerformanceProfile,
+  upgradeTier
+} from '../../utils/performance-profile';
 
 type GameState = 'DRIFT' | 'SWARM' | 'CHARGING' | 'SINGULARITY' | 'EXPLODING' | 'MOON_DANCE';
 
 type MousePower = 'DEFAULT' | 'BLACK_HOLE' | 'PAINT_BRUSH' | 'REPELLER' | 'TESLA_DISCHARGE' | 'WORMHOLE' | 'NEBULAR_WIND' | 'TIME_DILATION';
+type SandboxChargeTier = 'tap' | 'charged' | 'super';
 
 interface SandboxBlackhole {
   x: number;
@@ -12,6 +21,8 @@ interface SandboxBlackhole {
   maxRadius: number;
   timer: number;
   maxTimer: number;
+  pullRadius: number;
+  gravityStrength: number;
 }
 
 interface Wormhole {
@@ -46,6 +57,7 @@ interface Particle {
   behaviorState: 'CRUISE' | 'DECELERATE' | 'BURST';
   behaviorTimer: number;
   speedFactor: number;
+  isNursery?: boolean;
 }
 
 interface TwinkleStar {
@@ -166,7 +178,7 @@ interface CosmicEasterEgg {
     <div class="sandbox-container">
       <!-- Trigger Button (Curious glowing blue dot easter egg) -->
       <div class="sandbox-trigger-wrapper">
-        <span *ngIf="!isSandboxOpen" class="sandbox-trigger-hint">ACTIVATE SIMULATOR ➔</span>
+        <span *ngIf="!isSandboxOpen" class="sandbox-trigger-hint">? ➔</span>
         <button class="sandbox-trigger" (click)="toggleSandboxBar()" aria-label="Toggle Sandbox Mode">
           <div class="pulsar-icon">
             <span class="pulsar-icon__core"></span>
@@ -177,27 +189,45 @@ interface CosmicEasterEgg {
 
       <!-- Sandbox Control Panel -->
       <div class="sandbox-panel" [class.sandbox-panel--open]="isSandboxOpen">
+        <button
+          class="sandbox-panel__close"
+          (click)="toggleSandboxBar()"
+          aria-label="Close sandbox panel">
+          ×
+        </button>
         <div class="sandbox-panel__header">
-          <span class="sandbox-panel__title">SANDBOX UNIVERSE CREATOR</span>
-          <span class="sandbox-panel__subtitle">CHOOSE A COSMIC MOUSE POWER TO BEND GRAVITY AND PHYSICS</span>
+          <div class="sandbox-panel__header-row">
+            <span class="sandbox-panel__title">SANDBOX UNIVERSE CREATOR</span>
+            <button
+              class="sandbox-pin"
+              [class.sandbox-pin--active]="isSandboxPinned"
+              (click)="toggleSandboxPin()"
+              [attr.aria-pressed]="isSandboxPinned"
+              [attr.aria-label]="isSandboxPinned ? 'Unpin sandbox panel' : 'Pin sandbox panel'">
+              {{ isSandboxPinned ? '📌' : '📍' }}
+            </button>
+          </div>
+          <span class="sandbox-panel__subtitle">Place objects, switch tools, combine powers — CLEAR resets the world</span>
+          <span *ngIf="activePower === 'PAINT_BRUSH'" class="sandbox-panel__nursery-count">{{ nurseryStarsLabel }} nursery stars</span>
         </div>
-        <div class="sandbox-panel__tools">
-          <button 
-            *ngFor="let tool of toolsList" 
-            class="sandbox-tool" 
-            [class.sandbox-tool--active]="activePower === tool.id"
-            (click)="selectPower(tool.id)">
-            <span class="sandbox-tool__icon">{{ tool.icon }}</span>
-            <div class="sandbox-tool__info">
-              <span class="sandbox-tool__name">{{ tool.name }}</span>
-              <span class="sandbox-tool__desc">{{ tool.desc }}</span>
-            </div>
-          </button>
-        </div>
-        <div class="sandbox-panel__actions">
-          <span class="sandbox-panel__hint">💡 Psst... try clicking the logo!</span>
-          <button class="sandbox-action-btn" (click)="clearSandboxElements()">CLEAR SIMULATION</button>
-          <button class="sandbox-action-btn sandbox-action-btn--close" (click)="toggleSandboxBar()">CLOSE</button>
+        <div class="sandbox-panel__body">
+          <div class="sandbox-panel__tools">
+            <button 
+              *ngFor="let tool of toolsList" 
+              class="sandbox-tool" 
+              [class.sandbox-tool--active]="activePower === tool.id"
+              (click)="selectPower(tool.id)">
+              <span class="sandbox-tool__icon">{{ tool.icon }}</span>
+              <div class="sandbox-tool__info">
+                <span class="sandbox-tool__name">{{ tool.name }}</span>
+                <span class="sandbox-tool__desc">{{ tool.desc }}</span>
+              </div>
+            </button>
+          </div>
+          <div class="sandbox-panel__actions">
+            <span class="sandbox-panel__hint">💡 Psst... try clicking the logo!</span>
+            <button class="sandbox-action-btn" (click)="clearSandboxElements()">CLEAR SIMULATION</button>
+          </div>
         </div>
       </div>
       
@@ -282,11 +312,11 @@ interface CosmicEasterEgg {
       color: #00f0ff;
       letter-spacing: 0.12rem;
       text-shadow: 0 0 8px rgba(0, 240, 255, 0.8);
-      animation: hintPulse 2.5s infinite ease-in-out;
+      animation: hintPulse 4s infinite ease-in-out;
       pointer-events: none;
     }
     @keyframes hintPulse {
-      0%, 100% { opacity: 0.35; transform: translateX(2px); }
+      0%, 100% { opacity: 0; transform: translateX(2px); }
       50% { opacity: 1.0; transform: translateX(-4px); }
     }
     .sandbox-trigger {
@@ -352,6 +382,9 @@ interface CosmicEasterEgg {
       transform: translate(-50%, -100%);
       width: 96%;
       max-width: 1200px;
+      max-height: calc(100dvh - 50px);
+      min-height: 0;
+      overflow: hidden;
       background: rgba(5, 10, 24, 0.78);
       backdrop-filter: blur(25px);
       -webkit-backdrop-filter: blur(25px);
@@ -359,15 +392,43 @@ interface CosmicEasterEgg {
       border-radius: 16px;
       box-shadow: 0 30px 70px rgba(0, 0, 0, 0.8), 0 0 35px rgba(0, 240, 255, 0.1);
       z-index: 12000;
-      transition: all 0.65s cubic-bezier(0.19, 1, 0.22, 1);
+      transition: transform 0.65s cubic-bezier(0.19, 1, 0.22, 1);
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
       padding: 20px 24px;
       pointer-events: auto;
     }
     .sandbox-panel--open {
       transform: translate(-50%, 25px);
+    }
+    .sandbox-panel__close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1;
+      appearance: none;
+      -webkit-appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 240, 255, 0.35);
+      background: rgba(10, 15, 30, 0.65);
+      color: #00f0ff;
+      font-size: 1.25rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .sandbox-panel__close:hover {
+      background: rgba(0, 240, 255, 0.12);
+      border-color: #00f0ff;
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
     }
     .sandbox-panel__header {
       display: flex;
@@ -375,6 +436,49 @@ interface CosmicEasterEgg {
       gap: 4px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       padding-bottom: 12px;
+      flex-shrink: 0;
+      padding-right: 36px;
+    }
+    .sandbox-panel__header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .sandbox-pin {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.06rem;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .sandbox-pin:hover {
+      border-color: rgba(0, 240, 255, 0.45);
+      color: #ffffff;
+    }
+    .sandbox-pin--active {
+      border-color: #00f0ff;
+      background: rgba(0, 240, 255, 0.12);
+      color: #00f0ff;
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+    }
+    .sandbox-pin__label {
+      text-transform: uppercase;
+    }
+    .sandbox-panel__nursery-count {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08rem;
+      color: rgba(255, 220, 180, 0.85);
     }
     .sandbox-panel__title {
       font-size: 0.88rem;
@@ -393,8 +497,37 @@ interface CosmicEasterEgg {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 12px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
     @media (max-width: 600px) {
+      .sandbox-panel {
+        padding: 16px;
+        max-height: calc(100dvh - 24px);
+      }
+      .sandbox-panel--open {
+        transform: translate(-50%, 12px);
+      }
+      .sandbox-panel__tools {
+        grid-template-columns: 1fr;
+      }
+      .sandbox-tool {
+        min-height: 60px !important;
+        padding: 10px 14px !important;
+      }
+      .sandbox-tool__icon {
+        width: 28px;
+        height: 28px;
+        font-size: 1.1rem;
+      }
+      .sandbox-tool__name {
+        font-size: 0.7rem;
+      }
+      .sandbox-tool__desc {
+        font-size: 0.58rem;
+      }
       .sandbox-panel__actions {
         flex-wrap: wrap;
         justify-content: flex-start;
@@ -402,6 +535,9 @@ interface CosmicEasterEgg {
       .sandbox-panel__hint {
         width: 100%;
         margin-bottom: 8px;
+      }
+      .sandbox-action-btn {
+        width: 100%;
       }
     }
     .sandbox-tool {
@@ -475,6 +611,7 @@ interface CosmicEasterEgg {
       gap: 12px;
       border-top: 1px solid rgba(255, 255, 255, 0.1);
       padding-top: 14px;
+      flex-shrink: 0;
     }
     .sandbox-panel__hint {
       font-size: 0.6rem;
@@ -508,17 +645,6 @@ interface CosmicEasterEgg {
       background: rgba(255, 80, 50, 0.15);
       border-color: rgba(255, 80, 50, 0.45);
       color: #ff5032;
-    }
-    .sandbox-action-btn--close {
-      background: #00f0ff;
-      border-color: #00f0ff;
-      color: #040814;
-    }
-    .sandbox-action-btn--close:hover {
-      background: #ffffff;
-      border-color: #ffffff;
-      color: #040814;
-      box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
     }
   `]
 })
@@ -558,19 +684,30 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
   // Sandbox Simulator dynamics
   public isSandboxOpen = false;
+  public isSandboxPinned = false;
   public activePower: MousePower = 'DEFAULT';
   private sandboxBlackholes: SandboxBlackhole[] = [];
   private wormholes: Wormhole[] = [];
+  private nurseryStarCount = 0;
+  private paintHoldFrame = 0;
+
+  public get nurseryStarsLabel(): string {
+    return `${this.nurseryStarCount} / ${this.maxNurseryStars}`;
+  }
+
+  private get maxNurseryStars(): number {
+    return this.performanceProfile.maxNurseryStars;
+  }
 
   public toolsList: { id: MousePower; name: string; desc: string; icon: string }[] = [
-    { id: 'DEFAULT', name: 'Nova Strike', desc: 'Shockwave clicks & press Super Move', icon: '⚡' },
-    { id: 'BLACK_HOLE', name: 'Event Horizon', desc: 'Spawn persistent black holes that eat stars', icon: '🕳️' },
-    { id: 'PAINT_BRUSH', name: 'Stellar Nursery', desc: 'Drag to paint new stars in space', icon: '🎨' },
-    { id: 'REPELLER', name: 'Anti-Gravity', desc: 'Project a forcefield that repels stars', icon: '🧲' },
-    { id: 'TESLA_DISCHARGE', name: 'Tesla Discharge', desc: 'Shock nearby stars with electric lightning', icon: '⚡' },
-    { id: 'WORMHOLE', name: 'Wormhole Gate', desc: 'Spawn Entry/Exit portals to teleport stars', icon: '🌀' },
-    { id: 'NEBULAR_WIND', name: 'Nebular Wind', desc: 'Drag & blow stars with celestial currents', icon: '🌬️' },
-    { id: 'TIME_DILATION', name: 'Time Dilation', desc: 'Slow down space-time for nearby stars', icon: '⏳' }
+    { id: 'DEFAULT', name: 'Nova Strike', desc: 'Hold to charge, release shockwave or Super Move — blasts stars into wormholes', icon: '⚡' },
+    { id: 'BLACK_HOLE', name: 'Event Horizon', desc: 'Place gravity wells that persist — sling stars into wormholes', icon: '🕳️' },
+    { id: 'PAINT_BRUSH', name: 'Stellar Nursery', desc: 'Hold to spray stars until cap, release for a starburst', icon: '🎨' },
+    { id: 'REPELLER', name: 'Anti-Gravity', desc: 'Hold to repel and spin stars, release for inversion nova', icon: '🧲' },
+    { id: 'TESLA_DISCHARGE', name: 'Tesla Discharge', desc: 'Hold to charge, release a Tesla Storm', icon: '⚡' },
+    { id: 'WORMHOLE', name: 'Wormhole Gate', desc: 'Tap to place portals — they stay until CLEAR', icon: '🌀' },
+    { id: 'NEBULAR_WIND', name: 'Nebular Wind', desc: 'Hold to blow stars, release a cosmic jet', icon: '🌬️' },
+    { id: 'TIME_DILATION', name: 'Chrono Well', desc: 'Hold to slow time, release a time freeze ripple', icon: '⏳' }
   ];
 
   // Constellation Easter Egg templates
@@ -634,6 +771,11 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   private chargeTime = 0; // frame count of press-and-hold
   private shakeTimer = 0; // screen-shake frames countdown
   private mouseVelocity = { x: 0, y: 0 };
+  private teslaHoldZapTimer = 0;
+  private inversionNovaTimer = 0;
+  private wormholeHypergateTimer = 0;
+  private mouseGravityPauseTimer = 0;
+  private readonly mouseGravityPauseFrames = 120; // ~2s at 60fps
 
   // Singularity (Implosion/Black-Hole) state
   private singularity = { x: 0, y: 0, active: false, timer: 0 };
@@ -646,12 +788,32 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
   private animationFrameId: number | null = null;
 
+  // Adaptive performance profile (static device tier + runtime FPS governor)
+  private performanceProfile!: PerformanceProfile;
+  private fpsFrameDeltas: number[] = [];
+  private fpsLowStreak = 0;
+  private fpsHighStreak = 0;
+  private fpsGovernorCooldown = 0;
+  private lastFrameTime = 0;
+  private static readonly FPS_SAMPLE_SIZE = 30;
+  private static readonly FPS_DOWNGRADE_THRESHOLD = 45;
+  private static readonly FPS_UPGRADE_THRESHOLD = 58;
+  private static readonly FPS_DOWNGRADE_FRAMES = 60;
+  private static readonly FPS_UPGRADE_FRAMES = 180;
+
   // Custom configuration constants (Clean, performant constellations)
-  private readonly maxParticles = 145; 
   private readonly particleDensity = 8000;
   private readonly connectionDistance = 145; // cleaner web connections
   private readonly mouseAttractDistance = 370;
   private readonly explosionRadius = 330;
+
+  private get maxParticles(): number {
+    return this.performanceProfile.maxParticles;
+  }
+
+  private get scaledConnectionDistance(): number {
+    return this.connectionDistance * this.performanceProfile.connectionDistanceScale;
+  }
 
   constructor(private ngZone: NgZone) {}
 
@@ -668,10 +830,9 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     }
     this.ctx = context;
 
-    this.resizeCanvas();
+    this.performanceProfile = resolvePerformanceProfile();
+    this.applyPerformanceTier(this.performanceProfile.tier, false);
     this.initNebulas();
-    this.initStars();
-    this.initGalaxies();
     this.initParticles();
 
     // Run animation loop outside Angular Zone to prevent triggering change detection 60 times/sec
@@ -693,6 +854,75 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.initStars();
     this.initGalaxies();
     this.initParticles();
+  }
+
+  private applyPerformanceTier(tier: PerformanceTier, reinitParticles = true): void {
+    this.performanceProfile = getProfileForTier(tier);
+    this.resizeCanvas();
+    this.initStars();
+    this.initGalaxies();
+    if (reinitParticles) {
+      this.nurseryStarCount = 0;
+      this.initParticles();
+    }
+  }
+
+  private tickFpsGovernor(now: number): void {
+    if (this.lastFrameTime > 0) {
+      const delta = now - this.lastFrameTime;
+      this.fpsFrameDeltas.push(delta);
+      if (this.fpsFrameDeltas.length > BackgroundCanvasComponent.FPS_SAMPLE_SIZE) {
+        this.fpsFrameDeltas.shift();
+      }
+    }
+    this.lastFrameTime = now;
+
+    if (this.fpsGovernorCooldown > 0) {
+      this.fpsGovernorCooldown--;
+      return;
+    }
+
+    if (this.fpsFrameDeltas.length < BackgroundCanvasComponent.FPS_SAMPLE_SIZE) {
+      return;
+    }
+
+    const avgDelta = this.fpsFrameDeltas.reduce((sum, value) => sum + value, 0) / this.fpsFrameDeltas.length;
+    const fps = 1000 / avgDelta;
+
+    if (fps < BackgroundCanvasComponent.FPS_DOWNGRADE_THRESHOLD) {
+      this.fpsLowStreak++;
+      this.fpsHighStreak = 0;
+      if (this.fpsLowStreak >= BackgroundCanvasComponent.FPS_DOWNGRADE_FRAMES) {
+        const nextTier = downgradeTier(this.performanceProfile.tier);
+        if (nextTier) {
+          this.applyPerformanceTier(nextTier);
+        }
+        this.fpsLowStreak = 0;
+        this.fpsHighStreak = 0;
+        this.fpsFrameDeltas = [];
+        this.fpsGovernorCooldown = 60;
+      }
+      return;
+    }
+
+    if (fps > BackgroundCanvasComponent.FPS_UPGRADE_THRESHOLD) {
+      this.fpsHighStreak++;
+      this.fpsLowStreak = 0;
+      if (this.fpsHighStreak >= BackgroundCanvasComponent.FPS_UPGRADE_FRAMES) {
+        const nextTier = upgradeTier(this.performanceProfile.tier);
+        if (nextTier) {
+          this.applyPerformanceTier(nextTier);
+        }
+        this.fpsLowStreak = 0;
+        this.fpsHighStreak = 0;
+        this.fpsFrameDeltas = [];
+        this.fpsGovernorCooldown = 60;
+      }
+      return;
+    }
+
+    this.fpsLowStreak = 0;
+    this.fpsHighStreak = 0;
   }
 
   private updateMouseCoords(event: MouseEvent): void {
@@ -720,16 +950,23 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.mouse.active = true;
     this.lastMoveTime = Date.now();
 
-    // Default Nova Strike: stars follow the cursor when it moves
-    if (this.usesDefaultMouseGravity() && (this.state === 'DRIFT' || (this.state === 'EXPLODING' && this.stateTimer < 15))) {
+    // Stars follow the cursor when it moves (paused during sandbox hold)
+    if (this.isMouseGravityActive() && (this.state === 'DRIFT' || (this.state === 'EXPLODING' && this.stateTimer < 15))) {
       this.transitionTo('SWARM');
     }
+
+    // Keep sandbox hold active while dragging — do not let SWARM idle events hijack the interaction
+    if (this.isSandboxPowerEngaged()) {
+      this.mouseMoving = true;
+      return;
+    }
+
     this.mouseMoving = true;
   }
 
   @HostListener('window:mouseleave')
   onMouseLeave(): void {
-    if (this.state === 'SWARM' || this.state === 'CHARGING') {
+    if (this.activePower === 'DEFAULT' && !this.isMouseDown && (this.state === 'SWARM' || this.state === 'CHARGING')) {
       this.triggerRandomStopAction();
     }
     this.mouse.active = false;
@@ -761,8 +998,8 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       }
     }
 
-    // Close sandbox panel if clicked outside
-    if (this.isSandboxOpen) {
+    // Close sandbox panel if clicked outside — unless pinned
+    if (this.isSandboxOpen && !this.isSandboxPinned) {
       this.isSandboxOpen = false;
       return;
     }
@@ -771,64 +1008,13 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.mouse.active = true;
     this.isMouseDown = true;
     this.chargeTime = 0;
+    this.teslaHoldZapTimer = 0;
 
-    // Process sandbox mouse down click powers
-    if (this.activePower === 'BLACK_HOLE') {
-      this.sandboxBlackholes.push({
-        x: this.mouse.x,
-        y: this.mouse.y,
-        radius: 0,
-        maxRadius: Math.random() * 8 + 18,
-        timer: 600,
-        maxTimer: 600
-      });
-      return;
+    if (this.activePower === 'DEFAULT') {
+      this.transitionTo('CHARGING');
+    } else {
+      this.pauseMouseGravity();
     }
-    
-    if (this.activePower === 'TESLA_DISCHARGE') {
-      this.triggerTeslaDischargePower();
-      return;
-    }
-    
-    if (this.activePower === 'WORMHOLE') {
-      if (this.wormholes.length < 2) {
-        const type = this.wormholes.length === 0 ? 'ENTRY' : 'EXIT';
-        this.wormholes.push({
-          x: this.mouse.x,
-          y: this.mouse.y,
-          radius: 30,
-          type,
-          pulsePhase: Math.random() * Math.PI
-        });
-      } else {
-        const first = this.wormholes[0];
-        const second = this.wormholes[1];
-        if (Math.random() > 0.5) {
-          first.x = this.mouse.x;
-          first.y = this.mouse.y;
-        } else {
-          second.x = this.mouse.x;
-          second.y = this.mouse.y;
-        }
-      }
-      return;
-    }
-
-    if (this.activePower === 'PAINT_BRUSH') {
-      this.spawnStellarBirth(this.mouse.x, this.mouse.y);
-      return;
-    }
-
-    // Hover-only sandbox powers — no Nova Strike charge / shockwave on click
-    if (this.activePower === 'REPELLER' || this.activePower === 'TIME_DILATION' || this.activePower === 'NEBULAR_WIND') {
-      return;
-    }
-
-    if (!this.usesDefaultMouseGravity()) {
-      return;
-    }
-
-    this.transitionTo('CHARGING');
   }
 
   @HostListener('window:mouseup', ['$event'])
@@ -854,6 +1040,8 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.updateMouseCoords(event);
 
     if (this.activePower !== 'DEFAULT') {
+      this.handleSandboxPowerRelease();
+      this.pauseMouseGravity(90);
       return;
     }
 
@@ -887,7 +1075,30 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   }
 
   // --- STATE MACHINE ROUTING ---
-  /** Default Nova Strike mouse gravity (SWARM pull / CHARGING) — disabled for sandbox powers. */
+  /** Cursor gravity (SWARM pull) — active for all powers unless briefly paused on click. */
+  /** Sandbox click/hold owns the cursor until mouseup. */
+  private isSandboxPowerEngaged(): boolean {
+    return this.activePower !== 'DEFAULT' && this.isMouseDown;
+  }
+
+  /** True while a sandbox power may apply its field physics (hold or brief post-release buffer). */
+  private isSandboxPowerChannelActive(): boolean {
+    return this.activePower !== 'DEFAULT' && (this.isMouseDown || this.mouseGravityPauseTimer > 0);
+  }
+
+  private isMouseGravityPaused(): boolean {
+    return this.isSandboxPowerEngaged() || this.mouseGravityPauseTimer > 0;
+  }
+
+  private isMouseGravityActive(): boolean {
+    return !this.isMouseGravityPaused();
+  }
+
+  private pauseMouseGravity(frames = this.mouseGravityPauseFrames): void {
+    this.mouseGravityPauseTimer = Math.max(this.mouseGravityPauseTimer, frames);
+  }
+
+  /** Nova Strike-only CHARGING / shockwave mode. */
   private usesDefaultMouseGravity(): boolean {
     return this.activePower === 'DEFAULT';
   }
@@ -907,6 +1118,10 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   }
 
   private triggerRandomStopAction(): void {
+    if (this.activePower !== 'DEFAULT' || this.isMouseDown) {
+      return;
+    }
+
     if (this.mouse.x === -1000) {
       this.transitionTo('DRIFT');
       return;
@@ -1076,8 +1291,6 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       if (dist < this.explosionRadius) {
         const force = (this.explosionRadius - dist) / this.explosionRadius;
         
-        // High turbulence: deflection range of +/- 1.8 radians (about 200 degrees spread)
-        // plus speed dispersion from 0.3x to 1.8x
         const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 3.6; 
         const speed = force * multiplier * (Math.random() * 1.5 + 0.3);
         
@@ -1085,33 +1298,44 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         p.vy = Math.sin(angle) * speed;
         p.colorBlend = 1.0;
 
-        // 50% chance of initiating dynamic post-blast wobble (spiraling or curved trajectory)
         if (Math.random() < 0.50) {
           p.wobbleTimer = Math.floor(Math.random() * 45) + 20;
         }
+
+        this.tryWormholeCapture(p, { forceCapture: true });
       }
     }
   }
 
   // --- STELLAR NURSERY & LIFE CYCLE SYSTEM ---
-  private spawnStellarBirth(x: number, y: number): void {
-    if (this.particles.length >= this.maxParticles + 15) return;
+  private spawnStellarBirth(x: number, y: number, options?: { nursery?: boolean; sprayAngle?: number }): boolean {
+    const isNursery = options?.nursery === true;
 
-    const angle = Math.random() * Math.PI * 2;
-    const speed = Math.random() * 2.5 + 1.0;
+    if (isNursery) {
+      if (this.nurseryStarCount >= this.maxNurseryStars) {
+        return false;
+      }
+    } else if (this.particles.length >= this.maxParticles + 15) {
+      return false;
+    }
+
+    const angle = options?.sprayAngle ?? Math.random() * Math.PI * 2;
+    const speed = isNursery
+      ? Math.random() * 3.5 + 1.5
+      : Math.random() * 2.5 + 1.0;
     const baseRadius = Math.random() * 2.0 + 1.6;
 
     const colors = [
-      'rgba(0, 240, 255,',   // Neon Cyan
-      'rgba(0, 240, 255,',   // Neon Cyan (duplicate to prioritize cyan)
-      'rgba(0, 240, 255,',   // Neon Cyan
-      'rgba(230, 100, 255,', // Nebula Magenta
-      'rgba(100, 180, 255,'  // Space Blue
+      'rgba(0, 240, 255,',
+      'rgba(0, 240, 255,',
+      'rgba(0, 240, 255,',
+      'rgba(230, 100, 255,',
+      'rgba(100, 180, 255,'
     ];
-    const colorPrefix = Math.random() < 0.12
+    const colorPrefix = isNursery || Math.random() < 0.12
       ? colors[Math.floor(Math.random() * colors.length)]
       : 'rgba(255, 255, 255,';
-    const flockable = Math.random() < 0.22; // Only 22% group up
+    const flockable = Math.random() < (isNursery ? 0.35 : 0.22);
 
     this.particles.push({
       x,
@@ -1122,18 +1346,36 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       baseVy: Math.sin(angle) * 0.4,
       radius: baseRadius,
       baseRadius,
-      colorBlend: 0.0,
+      colorBlend: isNursery ? 0.35 : 0.0,
       wobbleTimer: 0,
       colorPrefix,
       flockable,
       life: 1.0,
-      birthProgress: 0.0,
+      birthProgress: isNursery ? 0.65 : 0.0,
       deathProgress: 0.0,
       isDying: false,
       behaviorState: 'CRUISE',
       behaviorTimer: Math.floor(Math.random() * 120) + 120,
-      speedFactor: 1.0
+      speedFactor: 1.0,
+      isNursery
     });
+
+    if (isNursery) {
+      this.nurseryStarCount++;
+      this.spawnStardustPuff(x, y, colorPrefix);
+    }
+
+    return true;
+  }
+
+  private spawnNurseryStar(x: number, y: number): void {
+    const sprayAngle = Math.random() * Math.PI * 2;
+    const offset = Math.random() * 14;
+    this.spawnStellarBirth(
+      x + Math.cos(sprayAngle) * offset,
+      y + Math.sin(sprayAngle) * offset,
+      { nursery: true, sprayAngle }
+    );
   }
 
   private spawnStardustPuff(x: number, y: number, colorPrefix: string): void {
@@ -1200,7 +1442,8 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
   private resizeCanvas(): void {
     const canvas = this.canvasRef.nativeElement;
-    const dpr = window.devicePixelRatio || 1;
+    const dprCap = this.performanceProfile?.dprCap ?? 2;
+    const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
     
     // Size physical resolution to match canvas layout bounds precisely
     const rect = canvas.getBoundingClientRect();
@@ -1229,7 +1472,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     const width = window.innerWidth;
     const height = window.innerHeight;
     const area = width * height;
-    const starCount = Math.floor(area / 6000); 
+    const starCount = Math.floor(area / this.performanceProfile.backgroundStarDivisor); 
 
     const colorTints = [
       'rgba(255, 255, 255,',
@@ -1266,7 +1509,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     }
 
     // Initialize parallax space dust (sweeping cosmic breeze)
-    const dustCount = Math.floor(area / 10000);
+    const dustCount = Math.floor(area / this.performanceProfile.dustDivisor);
     this.spaceDust = [];
     for (let i = 0; i < dustCount; i++) {
       this.spaceDust.push({
@@ -1284,6 +1527,9 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     const width = window.innerWidth;
     const height = window.innerHeight;
     
+    const galaxyMult = this.performanceProfile.galaxyStarMultiplier;
+    const scaleGalaxyStars = (base: number) => Math.max(20, Math.floor(base * galaxyMult));
+
     this.backgroundGalaxies = [
       {
         x: width * 0.20,
@@ -1293,7 +1539,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         rotationSpeed: 0.00025,
         color: '140, 90, 255', // violet galaxy
         arms: 2,
-        starCount: 180,
+        starCount: scaleGalaxyStars(180),
         seed: Math.random() * 1000
       },
       {
@@ -1304,7 +1550,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         rotationSpeed: -0.00018,
         color: '0, 190, 255', // cyan galaxy
         arms: 3,
-        starCount: 240,
+        starCount: scaleGalaxyStars(240),
         seed: Math.random() * 1000
       },
       {
@@ -1315,7 +1561,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         rotationSpeed: 0.00035,
         color: '255, 130, 0', // space orange galaxy
         arms: 2,
-        starCount: 120,
+        starCount: scaleGalaxyStars(120),
         seed: Math.random() * 1000
       }
     ];
@@ -1453,8 +1699,8 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       return { x, y };
     }
 
-    // Sandbox powers use their own field visuals — skip default gravitational lensing
-    if (!this.usesDefaultMouseGravity()) {
+    // Sandbox powers use their own field visuals — skip lensing while a power click is active
+    if (this.isSandboxPowerChannelActive() && this.activePower !== 'DEFAULT') {
       return { x, y };
     }
 
@@ -1773,6 +2019,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   }
 
   private animate(): void {
+    this.tickFpsGovernor(typeof performance !== 'undefined' ? performance.now() : Date.now());
     this.draw();
     this.animationFrameId = requestAnimationFrame(() => this.animate());
   }
@@ -1834,8 +2081,18 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     }
 
     // --- STATE MACHINE ENGINE TICK ---
+    if (this.inversionNovaTimer > 0) {
+      this.inversionNovaTimer--;
+    }
+    if (this.wormholeHypergateTimer > 0) {
+      this.wormholeHypergateTimer--;
+    }
+    if (this.mouseGravityPauseTimer > 0) {
+      this.mouseGravityPauseTimer--;
+    }
+
     if (this.state === 'SWARM') {
-      if (this.mouse.active && this.mouseMoving) {
+      if (this.activePower === 'DEFAULT' && !this.isMouseDown && this.mouse.active && this.mouseMoving) {
         if (Date.now() - this.lastMoveTime > 220) {
           this.triggerRandomStopAction();
           this.mouseMoving = false;
@@ -1874,19 +2131,21 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         this.blackoutAlpha = 0.96;
         
         // Phase 2: Rapid logo trembling and pulsing
-        const logoEl = document.querySelector('.logo') as HTMLElement;
-        if (logoEl) {
-          const pulseFactor = 1.35 + Math.sin(this.stateTimer * 0.45) * 0.15;
-          const trembleX = (Math.random() - 0.5) * 4;
-          const trembleY = (Math.random() - 0.5) * 4;
-          logoEl.style.transform = `scale(${pulseFactor}) translate3d(${trembleX}px, ${trembleY}px, 0)`;
+        if (!this.performanceProfile.skipDomTremble) {
+          const logoEl = document.querySelector('.logo') as HTMLElement;
+          if (logoEl) {
+            const pulseFactor = 1.35 + Math.sin(this.stateTimer * 0.45) * 0.15;
+            const trembleX = (Math.random() - 0.5) * 4;
+            const trembleY = (Math.random() - 0.5) * 4;
+            logoEl.style.transform = `scale(${pulseFactor}) translate3d(${trembleX}px, ${trembleY}px, 0)`;
+          }
         }
         
         // Tremble screen
         this.shakeTimer = Math.max(this.shakeTimer, 3);
 
         // Convergence cosmic lightning discharges
-        if (Math.random() < 0.35) {
+        if (Math.random() < 0.35 * this.performanceProfile.effectScale) {
           const startFromLeft = Math.random() > 0.5;
           const startX = startFromLeft ? 0 : window.innerWidth;
           const startY = Math.random() * window.innerHeight;
@@ -1920,50 +2179,62 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
         // Blast all particles outwards with hyper kinetic speed (Big Bang)
         this.blastParticlesAway(this.singularity.x, this.singularity.y, 45.0);
+        const constellationCount = 1 + Math.floor(2 * this.performanceProfile.effectScale);
         this.spawnEasterEggConstellation(this.singularity.x, this.singularity.y);
-        this.spawnEasterEggConstellation(this.singularity.x - 100, this.singularity.y + 100);
-        this.spawnEasterEggConstellation(this.singularity.x + 100, this.singularity.y - 100);
+        if (constellationCount >= 2) {
+          this.spawnEasterEggConstellation(this.singularity.x - 100, this.singularity.y + 100);
+        }
+        if (constellationCount >= 3) {
+          this.spawnEasterEggConstellation(this.singularity.x + 100, this.singularity.y - 100);
+        }
         
         // Push massive multi-colored shockwave rings
-        this.shockwaves.push({
-          x: this.singularity.x,
-          y: this.singularity.y,
-          radius: 0,
-          maxRadius: this.explosionRadius * 3.5,
-          speed: 22.0,
-          alpha: 1.0,
-          color: '255, 255, 255' // Supernova white flash ring
-        });
-        this.shockwaves.push({
-          x: this.singularity.x,
-          y: this.singularity.y,
-          radius: 0,
-          maxRadius: this.explosionRadius * 3.0,
-          speed: 16.0,
-          alpha: 0.95,
-          color: '0, 240, 255' // Neon Cyan
-        });
-        this.shockwaves.push({
-          x: this.singularity.x,
-          y: this.singularity.y,
-          radius: 0,
-          maxRadius: this.explosionRadius * 2.5,
-          speed: 12.0,
-          alpha: 0.85,
-          color: '255, 100, 230' // Nebula Magenta
-        });
-        this.shockwaves.push({
-          x: this.singularity.x,
-          y: this.singularity.y,
-          radius: 0,
-          maxRadius: this.explosionRadius * 2.0,
-          speed: 9.0,
-          alpha: 0.75,
-          color: '100, 180, 255' // Space Blue
-        });
+        const bigBangShockwaves = [
+          {
+            x: this.singularity.x,
+            y: this.singularity.y,
+            radius: 0,
+            maxRadius: this.explosionRadius * 3.5,
+            speed: 22.0,
+            alpha: 1.0,
+            color: '255, 255, 255'
+          },
+          {
+            x: this.singularity.x,
+            y: this.singularity.y,
+            radius: 0,
+            maxRadius: this.explosionRadius * 3.0,
+            speed: 16.0,
+            alpha: 0.95,
+            color: '0, 240, 255'
+          },
+          {
+            x: this.singularity.x,
+            y: this.singularity.y,
+            radius: 0,
+            maxRadius: this.explosionRadius * 2.5,
+            speed: 12.0,
+            alpha: 0.85,
+            color: '255, 100, 230'
+          },
+          {
+            x: this.singularity.x,
+            y: this.singularity.y,
+            radius: 0,
+            maxRadius: this.explosionRadius * 2.0,
+            speed: 9.0,
+            alpha: 0.75,
+            color: '100, 180, 255'
+          }
+        ];
+        const shockwaveCount = Math.max(1, Math.floor(bigBangShockwaves.length * this.performanceProfile.effectScale));
+        for (let w = 0; w < shockwaveCount; w++) {
+          this.shockwaves.push(bigBangShockwaves[w]);
+        }
         
-        // Big Bang explosion sparks (240 high-speed debris)
-        for (let k = 0; k < 240; k++) {
+        // Big Bang explosion sparks (scaled by performance tier)
+        const sparkCount = Math.floor(240 * this.performanceProfile.effectScale);
+        for (let k = 0; k < sparkCount; k++) {
           const angle = Math.random() * Math.PI * 2;
           const speed = Math.random() * 20.0 + 4.5;
           this.sparks.push({
@@ -2007,7 +2278,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         this.blackoutAlpha = Math.max(0, this.blackoutAlpha - 0.015);
       }
       if (this.stateTimer <= 0 && this.shockwaves.length === 0) {
-        const resumeSwarm = this.mouseMoving && this.usesDefaultMouseGravity();
+        const resumeSwarm = this.mouseMoving && this.isMouseGravityActive();
         this.transitionTo(resumeSwarm ? 'SWARM' : 'DRIFT');
       }
     }
@@ -2067,7 +2338,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       this.ctx.fill();
 
       // Pulsars / Variable Stars pulsating ring echoes
-      if (star.isPulsar) {
+      if (star.isPulsar && !this.performanceProfile.skipPulsarRings) {
         star.pulsarPhase += 0.022;
         const pulseRadius = star.radius * (2.2 + Math.sin(star.pulsarPhase) * 1.3);
         const pulseOpacity = (0.5 - Math.sin(star.pulsarPhase) * 0.5) * 0.15 * twinkleOpacity;
@@ -2173,7 +2444,11 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     }
 
     // --- UPDATE & RENDER SANDBOX SIMULATION ELEMENTS ---
+    this.tickSandboxCharge();
+    this.tickTeslaHoldZaps();
+    this.applyBlackHolePreviewGravity();
     this.updateAndDrawSandboxElements(width, height);
+    this.drawSandboxPowerChargeAuras();
 
     // 5. Draw Charge Aurora ring & charge energy arcs (Nova Strike CHARGING only)
     let chargeProgress = 0;
@@ -2400,9 +2675,14 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
     // Spawn painted stars during drag if paint brush is active
     if (this.isMouseDown && this.activePower === 'PAINT_BRUSH' && this.mouse.x !== -1000) {
-      if (Math.random() < 0.35) {
-        this.spawnStellarBirth(this.mouse.x, this.mouse.y);
+      this.paintHoldFrame++;
+      if (this.nurseryStarCount < this.maxNurseryStars && this.paintHoldFrame % 2 === 0) {
+        this.spawnNurseryStar(this.mouse.x, this.mouse.y);
+      } else if (this.nurseryStarCount >= this.maxNurseryStars && this.paintHoldFrame % 8 === 0) {
+        this.spawnStardustPuff(this.mouse.x, this.mouse.y, 'rgba(255, 220, 180,');
       }
+    } else {
+      this.paintHoldFrame = 0;
     }
 
     // 11. Update & Render main interactive constellation particles
@@ -2414,7 +2694,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
       // A. Star Life Cycle Logic
       if (p.birthProgress < 1.0 && this.state !== 'MOON_DANCE') {
-        p.birthProgress += 0.025;
+        p.birthProgress += p.isNursery ? 0.08 : 0.025;
       }
 
       if (this.state !== 'MOON_DANCE') {
@@ -2426,6 +2706,9 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         } else {
           p.deathProgress += 0.015;
           if (p.deathProgress >= 1.0) {
+            if (p.isNursery) {
+              this.nurseryStarCount = Math.max(0, this.nurseryStarCount - 1);
+            }
             this.spawnMiniSupernova(p.x, p.y, p.colorPrefix);
             this.particles.splice(i, 1);
             continue;
@@ -2546,11 +2829,18 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
           p.vx += Math.cos(angle) * speed;
           p.vy += Math.sin(angle) * speed;
           p.colorBlend = Math.max(p.colorBlend, 0.85);
+          this.tryWormholeCapture(p, { forceCapture: true });
         }
       }
 
-      // E. Evaluate Swarm Gravity Physics (Nova Strike only)
-      if (this.state === 'SWARM' && this.usesDefaultMouseGravity()) {
+      // D2. Sandbox black hole + wormhole world physics (persistent until CLEAR)
+      for (const sbh of this.sandboxBlackholes) {
+        this.applySandboxBlackholeForces(p, sbh);
+      }
+      this.applyWormholeForcesToParticle(p);
+
+      // E. Evaluate Swarm Gravity Physics (paused briefly when using a sandbox power)
+      if (this.state === 'SWARM' && this.isMouseGravityActive()) {
         const dx = this.mouse.x - p.x;
         const dy = this.mouse.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -2572,39 +2862,83 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         }
       }
 
-      // Sandbox Repeller Force
-      if (this.activePower === 'REPELLER' && this.mouse.active && this.mouse.x !== -1000) {
-        const dx = p.x - this.mouse.x;
-        const dy = p.y - this.mouse.y;
+      // Wormhole placement preview suction (before both portals exist)
+      if (this.isMouseDown && this.activePower === 'WORMHOLE' && this.wormholes.length < 2 && this.mouse.active && this.mouse.x !== -1000) {
+        const charge = this.getSandboxChargeProgress();
+        const suctionRadius = 160 + charge * 120;
+        const dx = this.mouse.x - p.x;
+        const dy = this.mouse.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        if (dist < 320) {
-          const force = (320 - dist) / 320;
-          p.vx += (dx / dist) * force * 1.5;
-          p.vy += (dy / dist) * force * 1.5;
+        if (dist < suctionRadius) {
+          const force = (suctionRadius - dist) / suctionRadius;
+          p.vx += (dx / dist) * force * (0.5 + charge * 0.8);
+          p.vy += (dy / dist) * force * (0.5 + charge * 0.8);
         }
       }
 
-      // Sandbox Time Dilation Force (Chronosphere slows space-time to 15%)
-      if (this.activePower === 'TIME_DILATION' && this.mouse.active && this.mouse.x !== -1000) {
-        const dx = p.x - this.mouse.x;
-        const dy = p.y - this.mouse.y;
-        const distSq = dx * dx + dy * dy;
-        if (distSq < 240 * 240) {
-          p.vx *= 0.15;
-          p.vy *= 0.15;
-          p.colorBlend = Math.max(p.colorBlend, 0.7);
-        }
-      }
-
-      // Sandbox Nebular Wind Force (Blowing stars with directional mouse velocity vector)
-      if (this.activePower === 'NEBULAR_WIND' && this.mouse.active && this.mouse.x !== -1000 && this.isMouseDown) {
+      // Sandbox Repeller Force (while sandbox channel is active)
+      if (this.activePower === 'REPELLER' && this.isSandboxPowerChannelActive() && this.mouse.active && this.mouse.x !== -1000) {
+        const charge = this.isMouseDown ? this.getSandboxChargeProgress() : 0.2;
+        const fieldRadius = 220 + charge * 220;
         const dx = p.x - this.mouse.x;
         const dy = p.y - this.mouse.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        if (dist < 280) {
-          const force = (280 - dist) / 280;
-          p.vx += this.mouseVelocity.x * force * 0.25;
-          p.vy += this.mouseVelocity.y * force * 0.25;
+        if (dist < fieldRadius) {
+          const force = (fieldRadius - dist) / fieldRadius;
+          const repel = 1.2 + charge * 1.8;
+          p.vx += (dx / dist) * force * repel;
+          p.vy += (dy / dist) * force * repel;
+          p.vx += (-dy / dist) * force * (0.15 + charge * 0.35);
+          p.vy += (dx / dist) * force * (0.15 + charge * 0.35);
+        }
+      }
+
+      if (this.inversionNovaTimer > 0 && this.mouse.x !== -1000) {
+        const dx = p.x - this.mouse.x;
+        const dy = p.y - this.mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist < 360) {
+          const force = (360 - dist) / 360;
+          p.vx += (dx / dist) * force * 2.5;
+          p.vy += (dy / dist) * force * 2.5;
+        }
+      }
+
+      // Chrono Well — time slow + gentle inward drift while sandbox channel is active
+      if (this.activePower === 'TIME_DILATION' && this.isSandboxPowerChannelActive() && this.mouse.active && this.mouse.x !== -1000) {
+        const charge = this.isMouseDown ? this.getSandboxChargeProgress() : 0.25;
+        const fieldRadius = 180 + charge * 180;
+        const dx = this.mouse.x - p.x;
+        const dy = this.mouse.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+        if (dist < fieldRadius) {
+          const depth = 1 - dist / fieldRadius;
+          const slowFactor = 0.55 - depth * (0.25 + charge * 0.25);
+          p.vx *= slowFactor;
+          p.vy *= slowFactor;
+
+          const pullStrength = depth * (0.18 + charge * 0.22);
+          p.vx += (dx / dist) * pullStrength;
+          p.vy += (dy / dist) * pullStrength;
+          p.vx += (-dy / dist) * pullStrength * 0.35;
+          p.vy += (dx / dist) * pullStrength * 0.35;
+          p.colorBlend = Math.max(p.colorBlend, 0.45 + depth * (0.35 + charge * 0.25));
+        }
+      }
+
+      // Sandbox Nebular Wind Force (while sandbox channel active + mouse held)
+      if (this.activePower === 'NEBULAR_WIND' && this.isSandboxPowerChannelActive() && this.isMouseDown && this.mouse.active && this.mouse.x !== -1000) {
+        const charge = this.getSandboxChargeProgress();
+        const dx = p.x - this.mouse.x;
+        const dy = p.y - this.mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const reach = 200 + charge * 180;
+        if (dist < reach) {
+          const force = (reach - dist) / reach;
+          const windScale = 0.25 + charge * 0.45;
+          p.vx += this.mouseVelocity.x * force * windScale;
+          p.vy += this.mouseVelocity.y * force * windScale;
         }
       }
 
@@ -2816,7 +3150,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       this.ctx.fill();
 
       // I. Particle mating/breeding (on close collision)
-      if (!p.isDying && p.birthProgress >= 1.0) {
+      if (!this.performanceProfile.skipBreeding && !p.isDying && p.birthProgress >= 1.0) {
         for (let j = i - 1; j >= 0; j--) {
           const p2 = this.particles[j];
           if (p2.isDying || p2.birthProgress < 1.0) continue;
@@ -2843,8 +3177,8 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         const dy = p.y - p2.y;
         const distSq = dx * dx + dy * dy;
         const currentConnectionDist = this.state === 'DRIFT'
-          ? this.connectionDistance * 0.78
-          : (this.state === 'MOON_DANCE' ? this.connectionDistance * 1.35 : this.connectionDistance);
+          ? this.scaledConnectionDistance * 0.78
+          : (this.state === 'MOON_DANCE' ? this.scaledConnectionDistance * 1.35 : this.scaledConnectionDistance);
         const limitSq = currentConnectionDist * currentConnectionDist;
 
         if (distSq < limitSq) {
@@ -2855,7 +3189,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
             baseAlphaCoeff = 0.50; // extra glow for the cosmic whirlpool mesh
           }
           let alpha = (1 - dist / currentConnectionDist) * baseAlphaCoeff;
-          if ((this.state === 'SWARM' || this.state === 'CHARGING') && this.usesDefaultMouseGravity()) {
+          if ((this.state === 'SWARM' || this.state === 'CHARGING') && this.isMouseGravityActive()) {
             alpha *= 1.45;
           } else if (this.state === 'DRIFT' && p.behaviorState === 'DECELERATE' && p2.behaviorState === 'DECELERATE') {
             alpha *= 1.25;
@@ -2891,8 +3225,8 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         }
       }
 
-      // Draw gravity attraction beams (Nova Strike SWARM / CHARGING only)
-      if ((this.state === 'SWARM' || this.state === 'CHARGING') && this.usesDefaultMouseGravity()) {
+      // Draw gravity attraction beams (SWARM / CHARGING when cursor gravity is active)
+      if ((this.state === 'SWARM' || this.state === 'CHARGING') && this.isMouseGravityActive()) {
         const dx = p.x - this.mouse.x;
         const dy = p.y - this.mouse.y;
         const distSq = dx * dx + dy * dy;
@@ -2919,11 +3253,12 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
             this.ctx.stroke();
           }
         }
-      } else if (this.activePower === 'REPELLER' && this.mouse.active && this.mouse.x !== -1000) {
+      } else if (this.activePower === 'REPELLER' && this.isSandboxPowerChannelActive() && this.mouse.active && this.mouse.x !== -1000) {
+        const charge = this.isMouseDown ? this.getSandboxChargeProgress() : 0.2;
+        const repelRadius = 220 + charge * 220;
         const dx = p.x - this.mouse.x;
         const dy = p.y - this.mouse.y;
         const distSq = dx * dx + dy * dy;
-        const repelRadius = 320;
         const repelLimitSq = repelRadius * repelRadius;
 
         if (distSq < repelLimitSq && distSq > 1) {
@@ -2938,6 +3273,30 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
             this.ctx.moveTo(p.x, p.y);
             this.ctx.lineTo(pushX, pushY);
             this.ctx.strokeStyle = `rgba(255, 120, 190, ${alpha})`;
+            this.ctx.lineWidth = 1.0;
+            this.ctx.stroke();
+          }
+        }
+      } else if (this.activePower === 'TIME_DILATION' && this.isSandboxPowerChannelActive() && this.mouse.active && this.mouse.x !== -1000) {
+        const charge = this.isMouseDown ? this.getSandboxChargeProgress() : 0.25;
+        const wellRadius = 180 + charge * 180;
+        const dx = this.mouse.x - p.x;
+        const dy = this.mouse.y - p.y;
+        const distSq = dx * dx + dy * dy;
+        const wellLimitSq = wellRadius * wellRadius;
+
+        if (distSq < wellLimitSq && distSq > 1) {
+          const dist = Math.sqrt(distSq);
+          let alpha = (1 - dist / wellRadius) * 0.32;
+          if (p.isDying) alpha *= (1.0 - p.deathProgress);
+
+          if (alpha > 0.01) {
+            const pullX = p.x + (dx / dist) * 12;
+            const pullY = p.y + (dy / dist) * 12;
+            this.ctx.beginPath();
+            this.ctx.moveTo(p.x, p.y);
+            this.ctx.lineTo(pullX, pullY);
+            this.ctx.strokeStyle = `rgba(120, 220, 255, ${alpha})`;
             this.ctx.lineWidth = 1.0;
             this.ctx.stroke();
           }
@@ -3000,51 +3359,624 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   public toggleSandboxBar(): void {
     this.isSandboxOpen = !this.isSandboxOpen;
   }
+
+  public toggleSandboxPin(): void {
+    this.isSandboxPinned = !this.isSandboxPinned;
+  }
   
   public selectPower(power: MousePower): void {
     this.activePower = power;
-    this.wormholes = []; // Reset portals
-
-    // Leave Nova Strike cursor modes when switching to a sandbox power
-    if (!this.usesDefaultMouseGravity() && (this.state === 'SWARM' || this.state === 'CHARGING')) {
-      this.transitionTo('DRIFT');
-      this.chargeTime = 0;
-    }
   }
   
   public clearSandboxElements(): void {
     this.sandboxBlackholes = [];
     this.wormholes = [];
+    this.wormholeHypergateTimer = 0;
+    this.inversionNovaTimer = 0;
+    this.particles = this.particles.filter(p => !p.isNursery);
+    this.nurseryStarCount = 0;
+    this.paintHoldFrame = 0;
   }
 
-  private triggerTeslaDischargePower(): void {
+  private getSandboxChargeProgress(): number {
+    return Math.min(1, this.chargeTime / 60);
+  }
+
+  private getSandboxChargeTier(): SandboxChargeTier {
+    if (this.chargeTime >= 60) {
+      return 'super';
+    }
+    if (this.chargeTime >= 12) {
+      return 'charged';
+    }
+    return 'tap';
+  }
+
+  private isSandboxSuperCharged(): boolean {
+    return this.chargeTime >= 60;
+  }
+
+  private tickSandboxCharge(): void {
+    if (this.isMouseDown && this.activePower !== 'DEFAULT') {
+      this.chargeTime++;
+    }
+  }
+
+  private drawSandboxChargeAura(
+    innerColor: string,
+    midColor: string,
+    outerColor: string,
+    baseRadius = 35
+  ): void {
+    if (!this.isMouseDown || this.mouse.x === -1000) {
+      return;
+    }
+
+    const chargeProgress = this.getSandboxChargeProgress();
+    const auroraRadius = baseRadius + chargeProgress * 95;
+    const pulse = Math.sin(Date.now() / 60) * 10;
+
+    const grad = this.ctx.createRadialGradient(
+      this.mouse.x, this.mouse.y, 8,
+      this.mouse.x, this.mouse.y, auroraRadius + pulse
+    );
+    grad.addColorStop(0, innerColor.replace('ALPHA', String(0.45 * chargeProgress)));
+    grad.addColorStop(0.35, midColor.replace('ALPHA', String(0.28 * chargeProgress)));
+    grad.addColorStop(0.75, outerColor.replace('ALPHA', String(0.14 * chargeProgress)));
+    grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+
+    this.ctx.fillStyle = grad;
+    this.ctx.beginPath();
+    this.ctx.arc(this.mouse.x, this.mouse.y, auroraRadius + pulse, 0, Math.PI * 2);
+    this.ctx.fill();
+  }
+
+  private drawSandboxPowerChargeAuras(): void {
+    if (!this.isMouseDown || this.mouse.x === -1000) {
+      return;
+    }
+
+    switch (this.activePower) {
+      case 'BLACK_HOLE':
+        this.drawBlackHolePreview();
+        break;
+      case 'TESLA_DISCHARGE':
+        this.drawSandboxChargeAura(
+          'rgba(180, 220, 255, ALPHA)',
+          'rgba(120, 180, 255, ALPHA)',
+          'rgba(80, 140, 255, ALPHA)'
+        );
+        break;
+      case 'REPELLER':
+        this.drawSandboxChargeAura(
+          'rgba(255, 140, 200, ALPHA)',
+          'rgba(255, 100, 170, ALPHA)',
+          'rgba(255, 70, 130, ALPHA)'
+        );
+        break;
+      case 'TIME_DILATION':
+        this.drawSandboxChargeAura(
+          'rgba(0, 240, 255, ALPHA)',
+          'rgba(80, 200, 255, ALPHA)',
+          'rgba(120, 160, 255, ALPHA)'
+        );
+        break;
+      case 'NEBULAR_WIND':
+        this.drawSandboxChargeAura(
+          'rgba(120, 220, 255, ALPHA)',
+          'rgba(80, 180, 255, ALPHA)',
+          'rgba(60, 140, 255, ALPHA)',
+          28
+        );
+        break;
+      case 'PAINT_BRUSH':
+        this.drawSandboxChargeAura(
+          'rgba(255, 220, 180, ALPHA)',
+          'rgba(255, 180, 140, ALPHA)',
+          'rgba(255, 140, 120, ALPHA)',
+          30
+        );
+        break;
+      case 'WORMHOLE':
+        this.drawSandboxChargeAura(
+          'rgba(0, 240, 255, ALPHA)',
+          'rgba(255, 100, 230, ALPHA)',
+          'rgba(140, 120, 255, ALPHA)'
+        );
+        break;
+    }
+  }
+
+  private handleSandboxPowerRelease(): void {
+    const tier = this.getSandboxChargeTier();
+
+    switch (this.activePower) {
+      case 'BLACK_HOLE':
+        this.spawnSandboxBlackhole(this.mouse.x, this.mouse.y, tier);
+        break;
+      case 'TESLA_DISCHARGE':
+        this.triggerTeslaDischargePower(tier === 'tap' ? 'tap' : tier === 'charged' ? 'charged' : 'super');
+        break;
+      case 'REPELLER':
+        this.releaseRepellerPower(tier);
+        break;
+      case 'TIME_DILATION':
+        this.releaseTimeDilationPower(tier);
+        break;
+      case 'NEBULAR_WIND':
+        this.releaseNebularWindPower(tier);
+        break;
+      case 'PAINT_BRUSH':
+        this.releasePaintBrushPower(tier);
+        break;
+      case 'WORMHOLE':
+        this.releaseWormholePower(tier);
+        break;
+    }
+  }
+
+  private spawnSandboxBlackhole(x: number, y: number, tier: SandboxChargeTier): void {
+    if (tier === 'tap') {
+      this.sandboxBlackholes.push({
+        x,
+        y,
+        radius: 0,
+        maxRadius: Math.random() * 8 + 18,
+        timer: 0,
+        maxTimer: 600,
+        pullRadius: 340,
+        gravityStrength: 1.2
+      });
+      return;
+    }
+
+    if (tier === 'charged') {
+      this.sandboxBlackholes.push({
+        x,
+        y,
+        radius: 0,
+        maxRadius: Math.random() * 7 + 28,
+        timer: 0,
+        maxTimer: 720,
+        pullRadius: 460,
+        gravityStrength: 2.4
+      });
+      this.shakeTimer = Math.max(this.shakeTimer, 8);
+      return;
+    }
+
+    this.sandboxBlackholes.push({
+      x,
+      y,
+      radius: 0,
+      maxRadius: Math.random() * 15 + 40,
+      timer: 0,
+      maxTimer: 900,
+      pullRadius: 560,
+      gravityStrength: 3.5
+    });
+    this.shakeTimer = 22;
+  }
+
+  private applyBlackHolePreviewGravity(): void {
+    if (!this.isSandboxPowerEngaged() || this.activePower !== 'BLACK_HOLE' || this.mouse.x === -1000) {
+      return;
+    }
+
+    const charge = this.getSandboxChargeProgress();
+    const pullRadius = 280 + charge * 220;
+    const gravity = 1.0 + charge * 2.2;
+
+    for (const p of this.particles) {
+      if (p.isDying || p.birthProgress < 1.0) {
+        continue;
+      }
+
+      const dx = this.mouse.x - p.x;
+      const dy = this.mouse.y - p.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      if (dist < pullRadius) {
+        const force = (pullRadius - dist) / pullRadius;
+        p.vx += (dx / dist) * force * gravity;
+        p.vy += (dy / dist) * force * gravity;
+        p.vx += (-dy / dist) * force * (gravity * 0.55);
+        p.vy += (dx / dist) * force * (gravity * 0.55);
+        p.colorBlend = Math.max(p.colorBlend, 0.45 + charge * 0.4);
+      }
+    }
+  }
+
+  private drawBlackHolePreview(): void {
+    if (!this.isSandboxPowerEngaged() || this.activePower !== 'BLACK_HOLE' || this.mouse.x === -1000) {
+      return;
+    }
+
+    const charge = this.getSandboxChargeProgress();
+    const previewRadius = 14 + charge * 28;
+    const pullRadius = 280 + charge * 220;
+    const pulse = Math.sin(Date.now() / 80) * previewRadius * 0.15;
+
+    this.ctx.beginPath();
+    this.ctx.arc(this.mouse.x, this.mouse.y, pullRadius, 0, Math.PI * 2);
+    this.ctx.strokeStyle = `rgba(230, 100, 255, ${0.12 + charge * 0.22})`;
+    this.ctx.lineWidth = 1.5;
+    this.ctx.setLineDash([10, 14]);
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
+
+    this.ctx.beginPath();
+    this.ctx.arc(this.mouse.x, this.mouse.y, previewRadius + pulse, 0, Math.PI * 2);
+    this.ctx.fillStyle = `rgba(2, 4, 10, ${0.75 + charge * 0.2})`;
+    this.ctx.fill();
+
+    this.ctx.beginPath();
+    this.ctx.arc(this.mouse.x, this.mouse.y, previewRadius * 1.6 + pulse, 0, Math.PI * 2);
+    this.ctx.strokeStyle = `rgba(0, 240, 255, ${0.35 + charge * 0.45})`;
+    this.ctx.lineWidth = 2;
+    this.ctx.stroke();
+  }
+
+  private releaseRepellerPower(tier: SandboxChargeTier): void {
+    if (tier === 'tap') {
+      this.shockwaves.push({
+        x: this.mouse.x,
+        y: this.mouse.y,
+        radius: 0,
+        maxRadius: 180,
+        speed: 9,
+        alpha: 0.85,
+        color: '255, 120, 190'
+      });
+      this.blastParticlesAway(this.mouse.x, this.mouse.y, 8);
+      return;
+    }
+
+    if (tier === 'charged') {
+      this.shockwaves.push({
+        x: this.mouse.x,
+        y: this.mouse.y,
+        radius: 0,
+        maxRadius: 280,
+        speed: 8,
+        alpha: 0.9,
+        color: '255, 100, 210'
+      });
+      this.blastParticlesAway(this.mouse.x, this.mouse.y, 14);
+      return;
+    }
+
+    this.inversionNovaTimer = 30;
+    this.shakeTimer = 18;
+    this.blastParticlesAway(this.mouse.x, this.mouse.y, 20);
+    this.shockwaves.push({
+      x: this.mouse.x,
+      y: this.mouse.y,
+      radius: 0,
+      maxRadius: 400,
+      speed: 9.5,
+      alpha: 1,
+      color: '255, 100, 230'
+    });
+    this.shockwaves.push({
+      x: this.mouse.x,
+      y: this.mouse.y,
+      radius: 0,
+      maxRadius: 320,
+      speed: 7,
+      alpha: 0.85,
+      color: '255, 160, 220'
+    });
+  }
+
+  private releaseTimeDilationPower(tier: SandboxChargeTier): void {
+    const radius = tier === 'tap' ? 180 : tier === 'charged' ? 280 : 360;
+    const slowFactor = tier === 'tap' ? 0.78 : tier === 'charged' ? 0.42 : 0.12;
+
+    for (const p of this.particles) {
+      if (p.isDying || p.birthProgress < 1.0) {
+        continue;
+      }
+
+      const dx = p.x - this.mouse.x;
+      const dy = p.y - this.mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      if (dist < radius) {
+        const depth = 1 - dist / radius;
+        const damp = slowFactor - depth * (tier === 'super' ? 0.04 : 0.12);
+        p.vx *= damp;
+        p.vy *= damp;
+
+        if (tier !== 'tap') {
+          p.vx += (-dy / dist) * depth * (0.25 + (tier === 'super' ? 0.35 : 0.15));
+          p.vy += (dx / dist) * depth * (0.25 + (tier === 'super' ? 0.35 : 0.15));
+        }
+
+        p.colorBlend = Math.max(p.colorBlend, 0.55 + depth * (tier === 'super' ? 0.45 : 0.3));
+      }
+    }
+
+    if (tier === 'super') {
+      this.shockwaves.push({
+        x: this.mouse.x,
+        y: this.mouse.y,
+        radius: 0,
+        maxRadius: 260,
+        speed: 3.5,
+        alpha: 0.45,
+        color: '0, 220, 255'
+      });
+    } else if (tier === 'charged') {
+      this.shockwaves.push({
+        x: this.mouse.x,
+        y: this.mouse.y,
+        radius: 0,
+        maxRadius: 190,
+        speed: 2.8,
+        alpha: 0.28,
+        color: '0, 210, 255'
+      });
+    }
+  }
+
+  private releaseNebularWindPower(tier: SandboxChargeTier): void {
+    const speed = Math.sqrt(this.mouseVelocity.x ** 2 + this.mouseVelocity.y ** 2);
+    const vxNorm = speed > 0.5 ? this.mouseVelocity.x / speed : 1;
+    const vyNorm = speed > 0.5 ? this.mouseVelocity.y / speed : 0;
+    const gustStrength = tier === 'tap' ? 6 : tier === 'charged' ? 11 : 18;
+
+    for (const p of this.particles) {
+      const dx = p.x - this.mouse.x;
+      const dy = p.y - this.mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const reach = tier === 'super' ? 420 : tier === 'charged' ? 320 : 200;
+
+      if (dist < reach) {
+        const force = (reach - dist) / reach;
+        p.vx += vxNorm * force * gustStrength;
+        p.vy += vyNorm * force * gustStrength;
+        p.colorBlend = Math.max(p.colorBlend, 0.55 + force * 0.35);
+      }
+    }
+
+    if (tier === 'super') {
+      this.shakeTimer = 12;
+      this.shockwaves.push({
+        x: this.mouse.x,
+        y: this.mouse.y,
+        radius: 0,
+        maxRadius: 380,
+        speed: 10,
+        alpha: 0.95,
+        color: '100, 200, 255'
+      });
+    }
+  }
+
+  private releasePaintBrushPower(tier: SandboxChargeTier): void {
+    const remaining = this.maxNurseryStars - this.nurseryStarCount;
+    if (remaining <= 0) {
+      this.spawnStardustPuff(this.mouse.x, this.mouse.y, 'rgba(255, 220, 180,');
+      return;
+    }
+
+    if (tier === 'tap') {
+      this.spawnNurseryStar(this.mouse.x, this.mouse.y);
+      return;
+    }
+
+    if (tier === 'charged') {
+      const burst = Math.min(4, remaining);
+      for (let i = 0; i < burst; i++) {
+        const angle = (Math.PI * 2 * i) / burst;
+        this.spawnNurseryStar(
+          this.mouse.x + Math.cos(angle) * 24,
+          this.mouse.y + Math.sin(angle) * 24
+        );
+      }
+      return;
+    }
+
+    const burst = Math.min(10, remaining);
+    for (let i = 0; i < burst; i++) {
+      const angle = i * 0.85;
+      const dist = 18 + i * 7;
+      this.spawnNurseryStar(
+        this.mouse.x + Math.cos(angle) * dist,
+        this.mouse.y + Math.sin(angle) * dist
+      );
+    }
+    this.shockwaves.push({
+      x: this.mouse.x,
+      y: this.mouse.y,
+      radius: 0,
+      maxRadius: 160,
+      speed: 5,
+      alpha: 0.7,
+      color: '255, 220, 180'
+    });
+  }
+
+  private tryWormholeCapture(p: Particle, opts?: { forceCapture?: boolean }): boolean {
+    if (p.isDying || p.birthProgress < 1.0 || this.wormholes.length !== 2) {
+      return false;
+    }
+
+    const entry = this.wormholes[0];
+    const exit = this.wormholes[1];
+    const hypergateActive = this.wormholeHypergateTimer > 0;
+    const captureRadius = entry.radius * (hypergateActive ? 1.8 : 1);
+    const dx = p.x - entry.x;
+    const dy = p.y - entry.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+
+    if (dist >= captureRadius) {
+      return false;
+    }
+
+    if (!opts?.forceCapture && speed < 3.5 && dist > captureRadius * 0.55) {
+      return false;
+    }
+
+    p.x = exit.x + (Math.random() - 0.5) * 8;
+    p.y = exit.y + (Math.random() - 0.5) * 8;
+
+    const launchSpeed = hypergateActive ? 12 : 8;
+    const launchAngle = Math.random() * Math.PI * 2;
+    const launch = Math.random() * launchSpeed + 5.5;
+    p.vx = Math.cos(launchAngle) * launch;
+    p.vy = Math.sin(launchAngle) * launch;
+    p.colorBlend = 1.0;
+
+    this.spawnStardustPuff(entry.x, entry.y, 'rgba(0, 240, 255,');
+    this.spawnStardustPuff(exit.x, exit.y, 'rgba(255, 100, 230,');
+    return true;
+  }
+
+  private applyWormholeForcesToParticle(p: Particle): void {
+    if (p.isDying || p.birthProgress < 1.0 || this.wormholes.length !== 2) {
+      return;
+    }
+
+    const entry = this.wormholes[0];
+    const hypergateActive = this.wormholeHypergateTimer > 0;
+    const entryReach = entry.radius * (hypergateActive ? 2.2 : 1) + 10;
+    const pullStrength = hypergateActive ? 1.35 : 0.65;
+
+    const dx = entry.x - p.x;
+    const dy = entry.y - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    if (dist < entryReach) {
+      p.vx += (dx / dist) * pullStrength;
+      p.vy += (dy / dist) * pullStrength;
+      this.tryWormholeCapture(p);
+    }
+  }
+
+  private applySandboxBlackholeForces(p: Particle, sbh: SandboxBlackhole): void {
+    if (p.isDying || p.birthProgress < 1.0) {
+      return;
+    }
+
+    const sbhRadius = sbh.radius;
+    const dx = sbh.x - p.x;
+    const dy = sbh.y - p.y;
+    const distSq = dx * dx + dy * dy;
+    const pullDist = sbh.pullRadius;
+    const gravity = sbh.gravityStrength;
+
+    if (distSq >= pullDist * pullDist) {
+      return;
+    }
+
+    const dist = Math.sqrt(distSq) || 1;
+    const force = (pullDist - dist) / pullDist;
+    p.vx += (dx / dist) * force * gravity;
+    p.vy += (dy / dist) * force * gravity;
+
+    p.vx += (-dy / dist) * force * (gravity * 0.58);
+    p.vy += (dx / dist) * force * (gravity * 0.58);
+
+    if (dist < sbhRadius * 2.5) {
+      const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+      const maxInward = 6 + gravity * 2.5;
+      if (speed > maxInward) {
+        p.vx = (p.vx / speed) * maxInward;
+        p.vy = (p.vy / speed) * maxInward;
+      }
+    }
+
+    if (dist < sbhRadius + 6) {
+      if (this.wormholes.length === 2) {
+        const entry = this.wormholes[0];
+        const edx = entry.x - p.x;
+        const edy = entry.y - p.y;
+        const edist = Math.sqrt(edx * edx + edy * edy) || 1;
+        p.vx += (edx / edist) * 3.5;
+        p.vy += (edy / edist) * 3.5;
+        this.tryWormholeCapture(p, { forceCapture: true });
+      } else {
+        p.isDying = true;
+        p.deathProgress = 1.0;
+        if (p.isNursery) {
+          this.nurseryStarCount = Math.max(0, this.nurseryStarCount - 1);
+        }
+        this.spawnMiniSupernova(sbh.x, sbh.y, p.colorPrefix);
+      }
+    }
+  }
+
+  private placeWormholePortal(): void {
+    if (this.wormholes.length < 2) {
+      const type = this.wormholes.length === 0 ? 'ENTRY' : 'EXIT';
+      this.wormholes.push({
+        x: this.mouse.x,
+        y: this.mouse.y,
+        radius: 30,
+        type,
+        pulsePhase: Math.random() * Math.PI
+      });
+      return;
+    }
+
+    const first = this.wormholes[0];
+    const second = this.wormholes[1];
+    const dFirst = (this.mouse.x - first.x) ** 2 + (this.mouse.y - first.y) ** 2;
+    const dSecond = (this.mouse.x - second.x) ** 2 + (this.mouse.y - second.y) ** 2;
+    const nearest = dFirst <= dSecond ? first : second;
+    nearest.x = this.mouse.x;
+    nearest.y = this.mouse.y;
+  }
+
+  private releaseWormholePower(tier: SandboxChargeTier): void {
+    if (tier === 'super' && this.wormholes.length === 2) {
+      this.wormholeHypergateTimer = 180;
+      this.shakeTimer = 14;
+      return;
+    }
+
+    this.placeWormholePortal();
+  }
+
+  private triggerTeslaDischargePower(intensity: 'tap' | 'charged' | 'super' = 'tap'): void {
+    const config = {
+      tap: { maxTargets: 6, radius: 500, blast: 14, chain: false },
+      charged: { maxTargets: 10, radius: 550, blast: 16, chain: false },
+      super: { maxTargets: 25, radius: 600, blast: 18, chain: true }
+    }[intensity];
+
     const sorted = [...this.particles]
       .map(p => {
         const dx = p.x - this.mouse.x;
         const dy = p.y - this.mouse.y;
-        return { particle: p, dist: Math.sqrt(dx*dx + dy*dy) };
+        return { particle: p, dist: Math.sqrt(dx * dx + dy * dy) };
       })
       .sort((a, b) => a.dist - b.dist);
-    
-    const targetCount = Math.min(12, sorted.length);
+
+    const targetCount = Math.min(config.maxTargets, sorted.length);
+    const struck: Particle[] = [];
+
     for (let i = 0; i < targetCount; i++) {
       const p = sorted[i].particle;
       const dx = p.x - this.mouse.x;
       const dy = p.y - this.mouse.y;
       const dist = sorted[i].dist || 1;
-      
-      if (dist < 500) {
+
+      if (dist < config.radius) {
         const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.4;
-        p.vx = Math.cos(angle) * 14.0;
-        p.vy = Math.sin(angle) * 14.0;
+        p.vx = Math.cos(angle) * config.blast;
+        p.vy = Math.sin(angle) * config.blast;
         p.colorBlend = 1.0;
-        
-        // Spawn lightning segment
+        struck.push(p);
+
         const segments = [];
-        const steps = 4;
+        const steps = intensity === 'super' ? 6 : 4;
         for (let s = 0; s <= steps; s++) {
           const t = s / steps;
-          const baseOffset = 15 * (1 - t);
+          const baseOffset = (intensity === 'super' ? 22 : 15) * (1 - t);
           const ox = (s === 0 || s === steps) ? 0 : (Math.random() - 0.5) * baseOffset;
           const oy = (s === 0 || s === steps) ? 0 : (Math.random() - 0.5) * baseOffset;
           segments.push({
@@ -3055,66 +3987,108 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         this.lightnings.push({ segments, alpha: 1.0 });
       }
     }
+
+    if (config.chain && struck.length > 1) {
+      for (let i = 0; i < struck.length - 1 && i < 14; i++) {
+        const a = struck[i];
+        const b = struck[i + 1];
+        this.lightnings.push({
+          segments: [
+            { x: a.x, y: a.y },
+            { x: (a.x + b.x) / 2 + (Math.random() - 0.5) * 20, y: (a.y + b.y) / 2 + (Math.random() - 0.5) * 20 },
+            { x: b.x, y: b.y }
+          ],
+          alpha: 0.85
+        });
+      }
+    }
+
+    if (intensity === 'super') {
+      this.shakeTimer = 25;
+      this.screenFlash = 8;
+      this.blastParticlesAway(this.mouse.x, this.mouse.y, 18);
+    }
+  }
+
+  private tickTeslaHoldZaps(): void {
+    if (!this.isMouseDown || this.activePower !== 'TESLA_DISCHARGE' || this.mouse.x === -1000) {
+      return;
+    }
+
+    this.teslaHoldZapTimer++;
+    if (this.teslaHoldZapTimer % 8 !== 0) {
+      return;
+    }
+
+    const charge = this.getSandboxChargeProgress();
+    const zapCount = Math.max(1, Math.floor((2 + Math.floor(charge * 3)) * this.performanceProfile.effectScale));
+    const sorted = [...this.particles]
+      .map(p => {
+        const dx = p.x - this.mouse.x;
+        const dy = p.y - this.mouse.y;
+        return { particle: p, dist: Math.sqrt(dx * dx + dy * dy) };
+      })
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, zapCount);
+
+    for (const entry of sorted) {
+      const p = entry.particle;
+      if (entry.dist > 420) {
+        continue;
+      }
+
+      const dx = p.x - this.mouse.x;
+      const dy = p.y - this.mouse.y;
+      const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.35;
+      p.vx += Math.cos(angle) * 4.5;
+      p.vy += Math.sin(angle) * 4.5;
+      p.colorBlend = Math.max(p.colorBlend, 0.75);
+
+      this.lightnings.push({
+        segments: [
+          { x: this.mouse.x, y: this.mouse.y },
+          { x: this.mouse.x + (p.x - this.mouse.x) * 0.5 + (Math.random() - 0.5) * 12, y: this.mouse.y + (p.y - this.mouse.y) * 0.5 + (Math.random() - 0.5) * 12 },
+          { x: p.x, y: p.y }
+        ],
+        alpha: 0.75
+      });
+    }
   }
 
   private updateAndDrawSandboxElements(width: number, height: number): void {
-    // 1. Sandbox Black holes
-    for (let i = this.sandboxBlackholes.length - 1; i >= 0; i--) {
-      const sbh = this.sandboxBlackholes[i];
-      sbh.timer--;
-      
-      if (sbh.timer <= 0) {
-        this.sandboxBlackholes.splice(i, 1);
-        continue;
-      }
-      
-      const elapsed = sbh.maxTimer - sbh.timer;
-      if (elapsed < 60) {
-        sbh.radius = sbh.maxRadius * (elapsed / 60);
-      } else if (sbh.timer < 60) {
+    const hypergateActive = this.wormholeHypergateTimer > 0;
+
+    // 1. Sandbox Black holes — persistent until CLEAR (spawn-in animation only)
+    for (const sbh of this.sandboxBlackholes) {
+      sbh.timer++;
+      if (sbh.timer < 60) {
         sbh.radius = sbh.maxRadius * (sbh.timer / 60);
       } else {
         sbh.radius = sbh.maxRadius;
       }
-      
+
       const sbhRadius = sbh.radius;
-      for (const p of this.particles) {
-        if (p.isDying || p.birthProgress < 1.0) continue;
-        
-        const dx = sbh.x - p.x;
-        const dy = sbh.y - p.y;
-        const distSq = dx * dx + dy * dy;
-        const pullDist = 320;
-        
-        if (distSq < pullDist * pullDist) {
-          const dist = Math.sqrt(distSq) || 1;
-          const force = (pullDist - dist) / pullDist;
-          p.vx += (dx / dist) * force * 0.72;
-          p.vy += (dy / dist) * force * 0.72;
-          
-          p.vx += (-dy / dist) * force * 0.42;
-          p.vy += (dx / dist) * force * 0.42;
-          
-          if (dist < sbhRadius + 6) {
-            p.isDying = true;
-            p.deathProgress = 1.0;
-            this.spawnMiniSupernova(sbh.x, sbh.y, p.colorPrefix);
-          }
-        }
-      }
-      
+      const pulse = Math.sin(Date.now() / 80 + sbh.x) * sbhRadius * 0.2;
+
+      this.ctx.beginPath();
+      this.ctx.arc(sbh.x, sbh.y, sbh.pullRadius, 0, Math.PI * 2);
+      this.ctx.strokeStyle = `rgba(230, 100, 255, ${0.08 * (sbh.radius / sbh.maxRadius)})`;
+      this.ctx.lineWidth = 1;
+      this.ctx.setLineDash([6, 10]);
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
+
       this.ctx.beginPath();
       this.ctx.arc(sbh.x, sbh.y, sbhRadius, 0, Math.PI * 2);
       this.ctx.fillStyle = 'rgba(2, 4, 10, 0.98)';
       this.ctx.fill();
-      
-      const pulse = Math.sin(Date.now() / 80 + sbh.x) * sbhRadius * 0.2;
+
       this.ctx.beginPath();
       this.ctx.arc(sbh.x, sbh.y, sbhRadius * 1.45 + pulse, 0, Math.PI * 2);
       this.ctx.strokeStyle = `rgba(230, 100, 255, ${0.65 * (sbh.radius / sbh.maxRadius)})`;
       this.ctx.lineWidth = 2.0;
       this.ctx.stroke();
-      
+
       this.ctx.beginPath();
       this.ctx.arc(sbh.x, sbh.y, sbhRadius * 1.2 + pulse * 0.5, 0, Math.PI * 2);
       this.ctx.strokeStyle = `rgba(0, 240, 255, ${0.45 * (sbh.radius / sbh.maxRadius)})`;
@@ -3161,43 +4135,22 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       this.ctx.stroke();
     }
     
-    // Wormhole warp physics
-    if (this.wormholes.length === 2) {
+    if (this.wormholes.length === 2 && hypergateActive) {
       const entry = this.wormholes[0];
-      const exit = this.wormholes[1];
-      
-      for (const p of this.particles) {
-        if (p.isDying || p.birthProgress < 1.0) continue;
-        
-        const dx = entry.x - p.x;
-        const dy = entry.y - p.y;
-        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-        
-        if (dist < entry.radius + 10) {
-          p.vx += (dx / dist) * 0.65;
-          p.vy += (dy / dist) * 0.65;
-          
-          if (dist < entry.radius) {
-            p.x = exit.x + (Math.random() - 0.5) * 8;
-            p.y = exit.y + (Math.random() - 0.5) * 8;
-            
-            const launchAngle = Math.random() * Math.PI * 2;
-            const launchSpeed = Math.random() * 8.0 + 5.5;
-            p.vx = Math.cos(launchAngle) * launchSpeed;
-            p.vy = Math.sin(launchAngle) * launchSpeed;
-            p.colorBlend = 1.0;
-            
-            this.spawnStardustPuff(entry.x, entry.y, 'rgba(0, 240, 255,');
-            this.spawnStardustPuff(exit.x, exit.y, 'rgba(255, 100, 230,');
-          }
-        }
-      }
+      this.ctx.beginPath();
+      this.ctx.arc(entry.x, entry.y, entry.radius * 2.2, 0, Math.PI * 2);
+      this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+      this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([8, 10]);
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
     }
 
-    // 3. Anti-Gravity repulsion field visual
-    if (this.activePower === 'REPELLER' && this.mouse.active && this.mouse.x !== -1000) {
+    // 3. Anti-Gravity repulsion field visual (while gravity paused on click/hold)
+    if (this.activePower === 'REPELLER' && this.isSandboxPowerChannelActive() && this.mouse.active && this.mouse.x !== -1000) {
       this.ctx.save();
-      const fieldRadius = 320;
+      const charge = this.isMouseDown ? this.getSandboxChargeProgress() : 0.2;
+      const fieldRadius = 220 + charge * 220;
       this.ctx.beginPath();
       this.ctx.arc(this.mouse.x, this.mouse.y, fieldRadius, 0, Math.PI * 2);
       const repelGrad = this.ctx.createRadialGradient(this.mouse.x, this.mouse.y, 18, this.mouse.x, this.mouse.y, fieldRadius);
@@ -3216,23 +4169,25 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       this.ctx.restore();
     }
 
-    // 4. Time Dilation Chronosphere Bubble Visual
-    if (this.activePower === 'TIME_DILATION' && this.mouse.active && this.mouse.x !== -1000) {
+    // 4. Chrono Well bubble visual (while gravity paused on click/hold)
+    if (this.activePower === 'TIME_DILATION' && this.isSandboxPowerChannelActive() && this.mouse.active && this.mouse.x !== -1000) {
       this.ctx.save();
+      const charge = this.isMouseDown ? this.getSandboxChargeProgress() : 0.25;
+      const bubbleRadius = 180 + charge * 180;
       
       // Draw glowing chrono bubble background
       this.ctx.beginPath();
-      this.ctx.arc(this.mouse.x, this.mouse.y, 240, 0, Math.PI * 2);
-      const radGrad = this.ctx.createRadialGradient(this.mouse.x, this.mouse.y, 10, this.mouse.x, this.mouse.y, 240);
-      radGrad.addColorStop(0, 'rgba(0, 240, 255, 0.02)');
-      radGrad.addColorStop(0.8, 'rgba(0, 240, 255, 0.08)');
-      radGrad.addColorStop(1.0, 'rgba(0, 240, 255, 0.22)');
+      this.ctx.arc(this.mouse.x, this.mouse.y, bubbleRadius, 0, Math.PI * 2);
+      const radGrad = this.ctx.createRadialGradient(this.mouse.x, this.mouse.y, 10, this.mouse.x, this.mouse.y, bubbleRadius);
+      radGrad.addColorStop(0, 'rgba(0, 240, 255, 0.04)');
+      radGrad.addColorStop(0.8, 'rgba(0, 240, 255, 0.10)');
+      radGrad.addColorStop(1.0, 'rgba(0, 240, 255, 0.24)');
       this.ctx.fillStyle = radGrad;
       this.ctx.fill();
       
       // Draw outer rotating dashed clock ring
       this.ctx.beginPath();
-      this.ctx.arc(this.mouse.x, this.mouse.y, 240, Date.now() / 1200, Date.now() / 1200 + Math.PI * 2);
+      this.ctx.arc(this.mouse.x, this.mouse.y, bubbleRadius, Date.now() / 1200, Date.now() / 1200 + Math.PI * 2);
       this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
       this.ctx.lineWidth = 1.5;
       this.ctx.setLineDash([8, 12]);
@@ -3243,7 +4198,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       const sweepAngle = (Date.now() / 1500) % (Math.PI * 2);
       this.ctx.beginPath();
       this.ctx.moveTo(this.mouse.x, this.mouse.y);
-      this.ctx.lineTo(this.mouse.x + Math.cos(sweepAngle) * 240, this.mouse.y + Math.sin(sweepAngle) * 240);
+      this.ctx.lineTo(this.mouse.x + Math.cos(sweepAngle) * bubbleRadius, this.mouse.y + Math.sin(sweepAngle) * bubbleRadius);
       this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.15)';
       this.ctx.lineWidth = 2.0;
       this.ctx.stroke();
@@ -3251,8 +4206,8 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       this.ctx.restore();
     }
 
-    // 4. Nebular Wind Visual (Faint celestial wind lines)
-    if (this.activePower === 'NEBULAR_WIND' && this.mouse.active && this.mouse.x !== -1000 && this.isMouseDown) {
+    // 5. Nebular Wind Visual (while gravity paused + mouse held)
+    if (this.activePower === 'NEBULAR_WIND' && this.isSandboxPowerChannelActive() && this.mouse.active && this.mouse.x !== -1000 && this.isMouseDown) {
       const windSpeedSq = this.mouseVelocity.x * this.mouseVelocity.x + this.mouseVelocity.y * this.mouseVelocity.y;
       if (windSpeedSq > 0.5) {
         this.ctx.save();

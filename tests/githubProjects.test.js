@@ -85,9 +85,9 @@ describe('GitHubApiClient', () => {
     assert.equal(repos[1].name, 'NewPublicProject');
   });
 
-  test('falls back to GitHub API when pinned request fails', async () => {
+  test('falls back to GitHub API when raw README is unavailable', async () => {
     const githubPayload = [
-      { name: 'RepoLens', description: 'Repo', language: 'Python', html_url: 'https://github.com/fallback', stargazers_count: 7, pushed_at: '2023-02-02T00:00:00Z', fork: false, forks_count: 2, open_issues_count: 1 },
+      { name: 'RepoLens', description: 'Repo', language: 'Python', html_url: 'https://github.com/fallback', stargazers_count: 7, pushed_at: '2023-02-02T00:00:00Z', fork: false, forks_count: 2, open_issues_count: 1, default_branch: 'main' },
       { name: 'Forked', fork: true }
     ];
 
@@ -98,7 +98,7 @@ describe('GitHubApiClient', () => {
       }
 
       if (stringUrl.includes('raw.githubusercontent.com')) {
-        return { ok: false, status: 404 };
+        return { ok: false, status: 403 };
       }
 
       if (stringUrl.includes('/readme')) {
@@ -134,9 +134,10 @@ describe('GitHubApiClient', () => {
 
   test('returns repositories even when README is missing', async () => {
     const githubPayload = [
-      { name: 'RepoLens', description: 'Repo', language: 'Rust', html_url: 'https://github.com/noreadme', stargazers_count: 2, pushed_at: '2023-03-03T00:00:00Z', fork: false }
+      { name: 'RepoLens', description: 'Repo', language: 'Rust', html_url: 'https://github.com/noreadme', stargazers_count: 2, pushed_at: '2023-03-03T00:00:00Z', fork: false, default_branch: 'main' }
     ];
 
+    let readmeApiCalls = 0;
     const fetchStub = async (url) => {
       const stringUrl = String(url);
       if (stringUrl.includes('gh-pinned-repos')) {
@@ -148,6 +149,7 @@ describe('GitHubApiClient', () => {
       }
 
       if (stringUrl.includes('/readme')) {
+        readmeApiCalls += 1;
         return { status: 404, ok: false, async json() { return {}; } };
       }
 
@@ -165,6 +167,7 @@ describe('GitHubApiClient', () => {
     assert.equal(repos[0].name, 'RepoLens');
     assert.equal(repos[0].readmeRaw, null);
     assert.equal(repos[0].readmeHtmlUrl, 'https://github.com/noreadme');
+    assert.equal(readmeApiCalls, 0);
   });
 
   test('returns public repositories except explicit exclusions', async () => {

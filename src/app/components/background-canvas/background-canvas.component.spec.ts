@@ -214,4 +214,358 @@ describe('BackgroundCanvasComponent', () => {
     expect(p.birthProgress).toBeLessThan(1.0);
     expect(p.vx).not.toBe(0);
   });
+
+  describe('Sandbox Cosmic Control Panel and Simulator', () => {
+    beforeEach(() => {
+      // Mock canvas getBoundingClientRect to ensure coordinates are consistent
+      spyOn(component.canvasRef.nativeElement, 'getBoundingClientRect').and.returnValue({
+        left: 0,
+        top: 0,
+        right: 1000,
+        bottom: 1000,
+        width: 1000,
+        height: 1000,
+        x: 0,
+        y: 0,
+        toJSON: () => {}
+      } as DOMRect);
+    });
+
+    it('should toggle the sandbox open state', () => {
+      expect(component.isSandboxOpen).toBeFalse();
+      component.toggleSandboxBar();
+      expect(component.isSandboxOpen).toBeTrue();
+      component.toggleSandboxBar();
+      expect(component.isSandboxOpen).toBeFalse();
+    });
+
+    it('should select cosmic powers and clear wormholes on selection', () => {
+      component['wormholes'] = [{ x: 50, y: 50, radius: 30, type: 'ENTRY', pulsePhase: 0 }];
+      component.selectPower('BLACK_HOLE');
+      expect(component.activePower).toBe('BLACK_HOLE');
+      expect(component['wormholes'].length).toBe(0);
+    });
+
+    it('should clear sandbox elements', () => {
+      component['sandboxBlackholes'] = [{ x: 50, y: 50, radius: 10, maxRadius: 10, timer: 100, maxTimer: 100 }];
+      component['wormholes'] = [{ x: 50, y: 50, radius: 30, type: 'ENTRY', pulsePhase: 0 }];
+      
+      component.clearSandboxElements();
+      expect(component['sandboxBlackholes'].length).toBe(0);
+      expect(component['wormholes'].length).toBe(0);
+    });
+
+    it('should add persistent black holes when active power is Event Horizon and mouse click is fired', () => {
+      component.selectPower('BLACK_HOLE');
+      
+      const mousedownEvent = new MouseEvent('mousedown', { clientX: 200, clientY: 200 });
+      component.onMouseDown(mousedownEvent);
+      
+      expect(component['sandboxBlackholes'].length).toBe(1);
+      expect(component['sandboxBlackholes'][0].x).toBe(200);
+      expect(component['sandboxBlackholes'][0].y).toBe(200);
+      
+      // Let's add a particle near the blackhole to test attraction in draw()
+      component['particles'] = [{
+        x: 220,
+        y: 200,
+        vx: 0,
+        vy: 0,
+        baseVx: 0,
+        baseVy: 0,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: true,
+        life: 1.0,
+        birthProgress: 1.0,
+        deathProgress: 0.0,
+        isDying: false,
+        behaviorState: 'CRUISE',
+        behaviorTimer: 100,
+        speedFactor: 1.0
+      }];
+      
+      component['draw']();
+      
+      // Particle vx/vy should be modified (pulled towards 200, 200)
+      expect(component['particles'][0].vx).not.toBe(0);
+      expect(component['particles'][0].vy).not.toBe(0);
+    });
+
+    it('should paint new stars when active power is Stellar Nursery and dragging mouse click', () => {
+      component.selectPower('PAINT_BRUSH');
+      const startCount = component['particles'].length;
+      
+      const mousedownEvent = new MouseEvent('mousedown', { clientX: 300, clientY: 300 });
+      component.onMouseDown(mousedownEvent);
+      
+      expect(component['particles'].length).toBeGreaterThan(startCount);
+      const newParticle = component['particles'][component['particles'].length - 1];
+      expect(newParticle.x).toBe(300);
+      expect(newParticle.y).toBe(300);
+    });
+
+    it('should repel particles when active power is Anti-Gravity and mouse is active', () => {
+      component.selectPower('REPELLER');
+      
+      component['mouse'].x = 100;
+      component['mouse'].y = 100;
+      component['mouse'].active = true;
+      
+      component['particles'] = [{
+        x: 120, // right of mouse
+        y: 100,
+        vx: 0,
+        vy: 0,
+        baseVx: 0,
+        baseVy: 0,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: true,
+        life: 1.0,
+        birthProgress: 1.0,
+        deathProgress: 0.0,
+        isDying: false,
+        behaviorState: 'CRUISE',
+        behaviorTimer: 100,
+        speedFactor: 1.0
+      }];
+      
+      component['draw']();
+      
+      // Since particle is to the right of the mouse, vx should be positive (repelled)
+      expect(component['particles'][0].vx).toBeGreaterThan(0);
+    });
+
+    it('should not apply swarm gravity when Anti-Gravity is active even in SWARM state', () => {
+      component.selectPower('REPELLER');
+      component['state'] = 'SWARM';
+
+      component['mouse'].x = 100;
+      component['mouse'].y = 100;
+      component['mouse'].active = true;
+
+      component['particles'] = [{
+        x: 120,
+        y: 100,
+        vx: 0,
+        vy: 0,
+        baseVx: 0,
+        baseVy: 0,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: true,
+        life: 1.0,
+        birthProgress: 1.0,
+        deathProgress: 0.0,
+        isDying: false,
+        behaviorState: 'CRUISE',
+        behaviorTimer: 100,
+        speedFactor: 1.0
+      }];
+
+      component['draw']();
+
+      expect(component['particles'][0].vx).toBeGreaterThan(0);
+    });
+
+    it('should leave SWARM when selecting a sandbox power', () => {
+      component['state'] = 'SWARM';
+      component.selectPower('REPELLER');
+      expect(component['state']).toBe('DRIFT');
+    });
+
+    it('should not enter CHARGING when Anti-Gravity is active', () => {
+      component.selectPower('REPELLER');
+      const mousedownEvent = new MouseEvent('mousedown', { clientX: 200, clientY: 200 });
+      component.onMouseDown(mousedownEvent);
+      expect(component['state']).not.toBe('CHARGING');
+    });
+
+    it('should trigger tesla lightning discharge when active power is Tesla Discharge', () => {
+      component.selectPower('TESLA_DISCHARGE');
+      
+      component['particles'] = [{
+        x: 105,
+        y: 105,
+        vx: 0,
+        vy: 0,
+        baseVx: 0,
+        baseVy: 0,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: true,
+        life: 1.0,
+        birthProgress: 1.0,
+        deathProgress: 0.0,
+        isDying: false,
+        behaviorState: 'CRUISE',
+        behaviorTimer: 100,
+        speedFactor: 1.0
+      }];
+      
+      const mousedownEvent = new MouseEvent('mousedown', { clientX: 100, clientY: 100 });
+      component.onMouseDown(mousedownEvent);
+      
+      // Lightning segment should be created
+      expect(component['lightnings'].length).toBeGreaterThan(0);
+      // Particle should be energized (vx/vy updated and colorBlend = 1.0)
+      expect(component['particles'][0].colorBlend).toBe(1.0);
+      expect(component['particles'][0].vx).not.toBe(0);
+    });
+
+    it('should create Entry/Exit portals and teleport particles through Wormhole Gate', () => {
+      component.selectPower('WORMHOLE');
+      
+      // Click 1: Spawn Entry Portal
+      const click1 = new MouseEvent('mousedown', { clientX: 150, clientY: 150 });
+      component.onMouseDown(click1);
+      expect(component['wormholes'].length).toBe(1);
+      expect(component['wormholes'][0].type).toBe('ENTRY');
+      
+      // Click 2: Spawn Exit Portal
+      const click2 = new MouseEvent('mousedown', { clientX: 450, clientY: 450 });
+      component.onMouseDown(click2);
+      expect(component['wormholes'].length).toBe(2);
+      expect(component['wormholes'][1].type).toBe('EXIT');
+      
+      // Click 3: Relocate one portal (to verify relocation path)
+      const initialEntryX = component['wormholes'][0].x;
+      const initialExitX = component['wormholes'][1].x;
+      const click3 = new MouseEvent('mousedown', { clientX: 200, clientY: 200 });
+      component.onMouseDown(click3);
+      
+      // One of the wormholes should have moved to 200, 200
+      const entryChanged = component['wormholes'][0].x !== initialEntryX;
+      const exitChanged = component['wormholes'][1].x !== initialExitX;
+      expect(entryChanged || exitChanged).toBeTrue();
+      
+      // Manually set portals to known static points to test warp physics
+      component['wormholes'][0].x = 100;
+      component['wormholes'][0].y = 100;
+      component['wormholes'][1].x = 500;
+      component['wormholes'][1].y = 500;
+      
+      // Put a particle at 101, 100 (near entry at 100, 100)
+      component['particles'] = [{
+        x: 101,
+        y: 100,
+        vx: 0.1,
+        vy: 0.1,
+        baseVx: 0.1,
+        baseVy: 0.1,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: true,
+        life: 1.0,
+        birthProgress: 1.0,
+        deathProgress: 0.0,
+        isDying: false,
+        behaviorState: 'CRUISE',
+        behaviorTimer: 100,
+        speedFactor: 1.0
+      }];
+      
+      // Run drawing/physics iteration
+      component['draw']();
+      
+      // The particle should be teleported near the exit (500, 500)
+      expect(Math.abs(component['particles'][0].x - 500)).toBeLessThan(15);
+      expect(Math.abs(component['particles'][0].y - 500)).toBeLessThan(15);
+      // Particle should acquire high kinetic speed
+      expect(component['particles'][0].colorBlend).toBeCloseTo(0.94, 5);
+    });
+
+    it('should slow particle velocity when active power is Time Dilation', () => {
+      component.selectPower('TIME_DILATION');
+      component['mouse'].x = 100;
+      component['mouse'].y = 100;
+      component['mouse'].active = true;
+
+      component['particles'] = [{
+        x: 110,
+        y: 100,
+        vx: 4.0,
+        vy: 4.0,
+        baseVx: 1.0,
+        baseVy: 1.0,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: true,
+        life: 1.0,
+        birthProgress: 1.0,
+        deathProgress: 0.0,
+        isDying: false,
+        behaviorState: 'CRUISE',
+        behaviorTimer: 100,
+        speedFactor: 1.0
+      }];
+
+      component['draw']();
+
+      // Particle is inside chronosphere (distance 10 < 240), so its velocity should be scaled down significantly
+      expect(component['particles'][0].vx).toBeLessThan(1.0);
+      expect(component['particles'][0].vy).toBeLessThan(1.0);
+      expect(component['particles'][0].vx).toBeGreaterThan(0.5);
+      expect(component['particles'][0].vy).toBeGreaterThan(0.5);
+      // colorBlend should be boosted to at least 0.7 (but decayed by 0.94 in draw, so 0.7 * 0.94 = 0.658)
+      expect(component['particles'][0].colorBlend).toBeCloseTo(0.658, 4);
+    });
+
+    it('should blow particles with mouse velocity when active power is Nebular Wind and mouse is pressed', () => {
+      component.selectPower('NEBULAR_WIND');
+      component['mouse'].x = 100;
+      component['mouse'].y = 100;
+      component['mouse'].active = true;
+      component['isMouseDown'] = true;
+      component['mouseVelocity'] = { x: 10.0, y: -5.0 };
+
+      component['particles'] = [{
+        x: 120,
+        y: 100,
+        vx: 0.0,
+        vy: 0.0,
+        baseVx: 0.0,
+        baseVy: 0.0,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: true,
+        life: 1.0,
+        birthProgress: 1.0,
+        deathProgress: 0.0,
+        isDying: false,
+        behaviorState: 'CRUISE',
+        behaviorTimer: 100,
+        speedFactor: 1.0
+      }];
+
+      component['draw']();
+
+      // Wind force applies: force = (280 - 20) / 280 = 260 / 280 = ~0.928
+      // vx increases by mouseVelocity.x * force * 0.25 = 10.0 * 0.928 * 0.25 = ~2.32
+      expect(component['particles'][0].vx).toBeGreaterThan(0);
+      expect(component['particles'][0].vy).toBeLessThan(0);
+    });
+  });
 });

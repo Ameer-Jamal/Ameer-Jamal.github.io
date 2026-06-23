@@ -19,21 +19,41 @@
         error: bindConsole('error')
     };
 
-    const FEATURED_REPO_NAMES = [
-        'chatgpt-material-dark',
-        'ssm-bridge',
-        'localpilot',
-        'repolens',
-        'readablesql',
-        'relayops',
-        'dockerbacker',
-        'memoryanalyzer'
-    ];
-    const FEATURED_REPO_NAMES_LOWER = new Set(FEATURED_REPO_NAMES);
-    const FEATURED_REPO_RANK = FEATURED_REPO_NAMES.reduce((accumulator, name, index) => {
-        accumulator[name] = index;
-        return accumulator;
-    }, {});
+    const EXCLUDED_REPO_NAMES_LOWER = new Set([
+        'ameer-jamal',
+        'ameer-jamal.github.io',
+        'class-cloud-repo',
+        'minmax-tictactoe',
+        'realsoft-training-repo',
+        'madaincorp'
+    ]);
+
+    function normalizeProjectUrl(value) {
+        if (typeof value !== 'string' || value.trim() === '') {
+            return null;
+        }
+
+        try {
+            const parsed = new URL(value.trim());
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                return null;
+            }
+
+            return parsed.toString();
+        } catch (_error) {
+            return null;
+        }
+    }
+
+    function getProjectHomepage(repo) {
+        const homepage = normalizeProjectUrl(repo && repo.homepage);
+        const repositoryUrl = normalizeProjectUrl(repo && repo.url);
+        if (!homepage || homepage === repositoryUrl) {
+            return null;
+        }
+
+        return homepage;
+    }
 
     class RepositoryNormalizer {
         static fromPinned(pinnedRepo) {
@@ -56,7 +76,7 @@
                 openIssues: typeof pinnedRepo.open_issues === 'number' ? pinnedRepo.open_issues : 0,
                 watchers: typeof pinnedRepo.watchers === 'number' ? pinnedRepo.watchers : null,
                 defaultBranch: pinnedRepo.default_branch || null,
-                homepage: pinnedRepo.homepage || null
+                homepage: normalizeProjectUrl(pinnedRepo.homepage)
             };
         }
 
@@ -78,7 +98,7 @@
                     typeof githubRepo.default_branch === 'string' && githubRepo.default_branch !== ''
                         ? githubRepo.default_branch
                         : null,
-                homepage: githubRepo.homepage || null,
+                homepage: normalizeProjectUrl(githubRepo.homepage),
                 updatedAt: githubRepo.pushed_at || githubRepo.updated_at || null
             };
         }
@@ -104,24 +124,9 @@
         async fetchRepositories() {
             let repositories = [];
             try {
-                const pinnedRepos = await this.fetchPinnedRepositories();
-                if (Array.isArray(pinnedRepos) && pinnedRepos.length > 0) {
-                    logger.info('[GitHubProjects] Rendering pinned repositories.', {
-                        username: this.username,
-                        total: pinnedRepos.length
-                    });
-                    repositories = pinnedRepos;
-                }
-            } catch (error) {
-                logger.warn('[GitHubProjects] Failed to load pinned repositories, falling back to GitHub API.', error);
-            }
-
-            if (!repositories.length) {
-                try {
-                    repositories = await this.fetchFromGitHubApi();
-                } catch (apiError) {
-                    logger.warn('[GitHubProjects] GitHub API request failed; will try static fallback.', apiError);
-                }
+                repositories = await this.fetchFromGitHubApi();
+            } catch (apiError) {
+                logger.warn('[GitHubProjects] GitHub API request failed; will try static fallback.', apiError);
             }
 
             if (!repositories.length) {
@@ -254,7 +259,7 @@
                                 : (typeof item.default_branch === 'string' && item.default_branch !== ''
                                     ? item.default_branch
                                     : null),
-                        homepage: item.homepage || null,
+                        homepage: normalizeProjectUrl(item.homepage),
                         updatedAt: item.updatedAt || null
                     }));
                 } catch (error) {
@@ -267,17 +272,6 @@
 
         sortRepositories(repositories = []) {
             return [...repositories].sort((a, b) => {
-                const nameA = a && a.name ? String(a.name).trim().toLowerCase() : '';
-                const nameB = b && b.name ? String(b.name).trim().toLowerCase() : '';
-                const rankA = Object.prototype.hasOwnProperty.call(FEATURED_REPO_RANK, nameA)
-                    ? FEATURED_REPO_RANK[nameA]
-                    : Number.POSITIVE_INFINITY;
-                const rankB = Object.prototype.hasOwnProperty.call(FEATURED_REPO_RANK, nameB)
-                    ? FEATURED_REPO_RANK[nameB]
-                    : Number.POSITIVE_INFINITY;
-                if (rankA !== rankB) {
-                    return rankA - rankB;
-                }
                 const starDelta = (b.stars || 0) - (a.stars || 0);
                 if (starDelta !== 0) {
                     return starDelta;
@@ -294,7 +288,7 @@
                     return false;
                 }
                 const normalized = String(repo.name).trim().toLowerCase();
-                return FEATURED_REPO_NAMES_LOWER.has(normalized);
+                return !EXCLUDED_REPO_NAMES_LOWER.has(normalized);
             });
         }
 
@@ -543,11 +537,23 @@
             }
 
             const markdownRenderer = new MarkdownRenderer({ doc: this.doc });
+            const responsiveShell = this.doc.createElement('div');
+            responsiveShell.className = 'github-projects__responsive-shell';
+
             const carousel = new RepoCarousel(this.doc, repositories, {
                 markdownRenderer,
                 username: this.username
             });
-            this.container.appendChild(carousel.getElement());
+
+            const mobileCarousel = new RepoCarousel(this.doc, repositories, {
+                markdownRenderer,
+                username: this.username,
+                rootClassName: 'github-projects__mobile-carousel'
+            });
+
+            responsiveShell.appendChild(carousel.getElement());
+            responsiveShell.appendChild(mobileCarousel.getElement());
+            this.container.appendChild(responsiveShell);
         }
     }
 
@@ -559,9 +565,16 @@
             this.currentIndex = 0;
             this.markdownRenderer = options.markdownRenderer || new MarkdownRenderer({ doc: this.doc });
             this.username = options.username || null;
+            this.expandedDialog = null;
+            this.rootClassName = options.rootClassName || 'github-projects__carousel';
+            this.handleExpandedKeydown = (event) => {
+                if (event.key === 'Escape') {
+                    this.closeExpandedProject();
+                }
+            };
 
             this.root = this.doc.createElement('div');
-            this.root.className = 'github-projects__carousel';
+            this.root.className = this.rootClassName;
 
             this.prevButton = this.createNavButton('previous', '‹');
             this.nextButton = this.createNavButton('next', '›');
@@ -619,6 +632,9 @@
 
             const repo = this.repositories[this.currentIndex];
             const card = this.createCard(repo);
+            if (this.isMobileCarousel()) {
+                this.moveMobileNavIntoCard(card);
+            }
             if (direction > 0) {
                 card.classList.add('github-projects__card--enter-next');
             } else if (direction < 0) {
@@ -647,6 +663,23 @@
             this.positionIndicator.textContent = `Project ${this.currentIndex + 1} of ${this.total}`;
         }
 
+        isMobileCarousel() {
+            return this.rootClassName.indexOf('github-projects__mobile-carousel') !== -1;
+        }
+
+        moveMobileNavIntoCard(card) {
+            const header = card.querySelector('.github-projects__card-header');
+            if (!header) {
+                return;
+            }
+
+            const controls = this.doc.createElement('div');
+            controls.className = 'github-projects__mobile-card-nav';
+            controls.appendChild(this.prevButton);
+            controls.appendChild(this.nextButton);
+            header.appendChild(controls);
+        }
+
         createNavButton(direction, label) {
             const button = this.doc.createElement('button');
             button.type = 'button';
@@ -671,8 +704,25 @@
             const badges = this.doc.createElement('div');
             badges.className = 'github-projects__badges';
             badges.appendChild(this.createBadge(repo.language || 'Not specified'));
-            if (repo.homepage) {
+            const homepage = getProjectHomepage(repo);
+            if (homepage) {
                 badges.appendChild(this.createBadge('Live'));
+            }
+            const expandButton = this.doc.createElement('button');
+            expandButton.type = 'button';
+            expandButton.className = 'github-projects__expand';
+            expandButton.setAttribute('aria-label', `Expand ${repo.name} project details`);
+            const expandIcon = this.doc.createElement('span');
+            expandIcon.className = 'fas fa-expand-alt';
+            expandIcon.setAttribute('aria-hidden', 'true');
+            expandButton.appendChild(expandIcon);
+            expandButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.openExpandedProject(repo);
+            });
+            if (!this.isMobileCarousel()) {
+                badges.appendChild(expandButton);
             }
             header.appendChild(badges);
             card.appendChild(header);
@@ -733,13 +783,13 @@
 
             actions.appendChild(repoLink);
 
-            if (repo.homepage) {
+            if (homepage) {
                 const demoLink = this.doc.createElement('a');
                 demoLink.className = 'github-projects__card-link';
-                demoLink.href = repo.homepage;
+                demoLink.href = homepage;
                 demoLink.target = '_blank';
                 demoLink.rel = 'noopener';
-                demoLink.textContent = 'View Live Site';
+                demoLink.textContent = 'Open Project';
                 actions.appendChild(demoLink);
             }
 
@@ -749,6 +799,215 @@
             card.appendChild(actions);
 
             return card;
+        }
+
+        createMobileCard(repo, index) {
+            const card = this.doc.createElement('div');
+            card.className = 'github-projects__mobile-card';
+
+            const header = this.doc.createElement('div');
+            header.className = 'github-projects__mobile-card-header';
+
+            const title = this.doc.createElement('h4');
+            title.className = 'github-projects__mobile-card-title';
+            title.textContent = repo.name;
+            header.appendChild(title);
+
+            const badges = this.doc.createElement('div');
+            badges.className = 'github-projects__mobile-badges';
+            badges.appendChild(this.createBadge(repo.language || 'Not specified'));
+            const homepage = getProjectHomepage(repo);
+            if (homepage) {
+                badges.appendChild(this.createBadge('Live'));
+            }
+            header.appendChild(badges);
+            card.appendChild(header);
+
+            if (repo.description && repo.description.trim().length > 0) {
+                const description = this.doc.createElement('p');
+                description.className = 'github-projects__mobile-description';
+                description.textContent = repo.description;
+                card.appendChild(description);
+            }
+
+            const meta = this.doc.createElement('ul');
+            meta.className = 'github-projects__mobile-meta';
+            if ((repo.stars || 0) > 0) {
+                meta.appendChild(this.createStatItem('Stars', formatNumber(repo.stars)));
+            }
+            meta.appendChild(this.createStatItem('Updated', repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'Recently updated'));
+            card.appendChild(meta);
+
+            const actions = this.doc.createElement('div');
+            actions.className = 'github-projects__mobile-actions';
+
+            const detailsButton = this.doc.createElement('button');
+            detailsButton.type = 'button';
+            detailsButton.className = 'github-projects__mobile-details';
+            detailsButton.textContent = 'Details';
+            detailsButton.setAttribute('aria-label', `Open ${repo.name} project details`);
+            detailsButton.addEventListener('click', () => this.openExpandedProject(repo));
+            actions.appendChild(detailsButton);
+
+            const repoLink = this.doc.createElement('a');
+            repoLink.className = 'github-projects__card-link';
+            repoLink.href = repo.url;
+            repoLink.target = '_blank';
+            repoLink.rel = 'noopener';
+            repoLink.textContent = 'Repository';
+            actions.appendChild(repoLink);
+
+            if (homepage) {
+                const demoLink = this.doc.createElement('a');
+                demoLink.className = 'github-projects__card-link';
+                demoLink.href = homepage;
+                demoLink.target = '_blank';
+                demoLink.rel = 'noopener';
+                demoLink.textContent = 'Open';
+                actions.appendChild(demoLink);
+            }
+
+            card.appendChild(actions);
+
+            const position = this.doc.createElement('p');
+            position.className = 'github-projects__mobile-position';
+            position.textContent = `${index + 1} of ${this.total}`;
+            card.appendChild(position);
+
+            return card;
+        }
+
+        openExpandedProject(repo) {
+            this.closeExpandedProject();
+
+            const overlay = this.doc.createElement('div');
+            overlay.className = 'github-projects__dialog';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-label', `${repo.name} project details`);
+
+            const panel = this.doc.createElement('div');
+            panel.className = 'github-projects__dialog-panel';
+            panel.addEventListener('click', (event) => event.stopPropagation());
+
+            const closeButton = this.doc.createElement('button');
+            closeButton.type = 'button';
+            closeButton.className = 'github-projects__dialog-close';
+            closeButton.setAttribute('aria-label', 'Close expanded project');
+            const closeIcon = this.doc.createElement('span');
+            closeIcon.className = 'fas fa-times';
+            closeIcon.setAttribute('aria-hidden', 'true');
+            closeButton.appendChild(closeIcon);
+            closeButton.addEventListener('click', () => this.closeExpandedProject());
+
+            const header = this.doc.createElement('div');
+            header.className = 'github-projects__dialog-header';
+
+            const titleGroup = this.doc.createElement('div');
+            const title = this.doc.createElement('h3');
+            title.className = 'github-projects__dialog-title';
+            title.textContent = repo.name;
+            titleGroup.appendChild(title);
+
+            if (repo.description && repo.description.trim().length > 0) {
+                const description = this.doc.createElement('p');
+                description.className = 'github-projects__dialog-description';
+                description.textContent = repo.description;
+                titleGroup.appendChild(description);
+            }
+
+            const badges = this.doc.createElement('div');
+            badges.className = 'github-projects__badges';
+            badges.appendChild(this.createBadge(repo.language || 'Not specified'));
+            const homepage = getProjectHomepage(repo);
+            if (homepage) {
+                badges.appendChild(this.createBadge('Live'));
+            }
+
+            header.appendChild(titleGroup);
+            header.appendChild(badges);
+
+            const stats = this.doc.createElement('ul');
+            stats.className = 'github-projects__stats github-projects__stats--expanded';
+            stats.appendChild(this.createStatItem('Language', repo.language || 'Not specified'));
+            if ((repo.stars || 0) > 0) {
+                stats.appendChild(this.createStatItem('Stars', formatNumber(repo.stars)));
+            }
+            if ((repo.forks || 0) > 0) {
+                stats.appendChild(this.createStatItem('Forks', formatNumber(repo.forks)));
+            }
+            if ((repo.openIssues || 0) > 0) {
+                stats.appendChild(this.createStatItem('Open Issues', formatNumber(repo.openIssues)));
+            }
+            if ((repo.watchers || 0) > 0) {
+                stats.appendChild(this.createStatItem('Watchers', formatNumber(repo.watchers)));
+            }
+            stats.appendChild(this.createStatItem('Updated', repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'Recently updated'));
+
+            const readme = this.doc.createElement('div');
+            readme.className = 'github-projects__readme github-projects__readme--expanded';
+            const readmeHtml = this.renderReadme(repo);
+            if (readmeHtml) {
+                readme.innerHTML = readmeHtml;
+            } else if (repo.url && repo.url !== '#') {
+                readme.classList.add('github-projects__readme--empty');
+                const fallbackLink = this.doc.createElement('a');
+                fallbackLink.href = `${repo.url}#readme`;
+                fallbackLink.target = '_blank';
+                fallbackLink.rel = 'noopener';
+                fallbackLink.textContent = 'View README on GitHub';
+                readme.appendChild(fallbackLink);
+            }
+
+            const actions = this.doc.createElement('div');
+            actions.className = 'github-projects__links github-projects__links--expanded';
+
+            const repoLink = this.doc.createElement('a');
+            repoLink.className = 'github-projects__card-link';
+            repoLink.href = repo.url;
+            repoLink.target = '_blank';
+            repoLink.rel = 'noopener';
+            repoLink.textContent = 'View Repository';
+            actions.appendChild(repoLink);
+
+            if (homepage) {
+                const demoLink = this.doc.createElement('a');
+                demoLink.className = 'github-projects__card-link';
+                demoLink.href = homepage;
+                demoLink.target = '_blank';
+                demoLink.rel = 'noopener';
+                demoLink.textContent = 'Open Project';
+                actions.appendChild(demoLink);
+            }
+
+            panel.appendChild(closeButton);
+            panel.appendChild(header);
+            panel.appendChild(stats);
+            panel.appendChild(readme);
+            panel.appendChild(actions);
+            overlay.appendChild(panel);
+            overlay.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.closeExpandedProject();
+            });
+
+            this.doc.body.appendChild(overlay);
+            this.doc.body.classList.add('github-projects-dialog-open');
+            this.doc.addEventListener('keydown', this.handleExpandedKeydown);
+            this.expandedDialog = overlay;
+            closeButton.focus();
+        }
+
+        closeExpandedProject() {
+            if (!this.expandedDialog) {
+                return;
+            }
+
+            this.expandedDialog.remove();
+            this.expandedDialog = null;
+            this.doc.body.classList.remove('github-projects-dialog-open');
+            this.doc.removeEventListener('keydown', this.handleExpandedKeydown);
         }
 
         createBadge(label) {
@@ -776,7 +1035,6 @@
                 return null;
             }
             return this.markdownRenderer.render(repo.readmeRaw, {
-                maxLength: 1400,
                 baseRawUrl: repo.readmeRawBaseUrl,
                 baseHtmlUrl: repo.readmeHtmlBaseUrl
             });

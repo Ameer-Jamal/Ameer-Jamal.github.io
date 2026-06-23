@@ -8,44 +8,18 @@
     "forks": 1,
     "openIssues": 0,
     "updatedAt": "2026-06-17T19:56:52Z",
-    "defaultBranch": "main",
-    "homepage": "https://chromewebstore.google.com/detail/chatgpt-material-dark/kgnejlblhnimbflbcgfmoeckdbhllfcn?hl=en"
-  },
-  {
-    "name": "SSM-Bridge",
-    "description": "SSM Bridge is a local MCP server and terminal CLI for running commands and moving files on AWS SSM-managed Linux instances.",
-    "language": "Python",
-    "url": "https://github.com/Ameer-Jamal/SSM-Bridge",
-    "stars": 0,
-    "forks": 0,
-    "openIssues": 0,
-    "updatedAt": "2026-06-08T18:52:38Z",
-    "defaultBranch": "master",
-    "homepage": ""
+    "defaultBranch": "main"
   },
   {
     "name": "localPilot",
-    "description": "LocalPilot - local, free, private AI for your JetBrains IDE With Optional AWS Models",
+    "description": "LocalPilot — local, free, private AI for your JetBrains IDE With Optional AWS Models",
     "language": "Python",
     "url": "https://github.com/Ameer-Jamal/localPilot",
     "stars": 4,
     "forks": 0,
     "openIssues": 0,
     "updatedAt": "2026-06-04T19:34:35Z",
-    "defaultBranch": "master",
-    "homepage": ""
-  },
-  {
-    "name": "RepoLens",
-    "description": "UI and MCP designed to simplify the process of understanding and communicating changes made in Git repositories through AI Analysis.",
-    "language": "Python",
-    "url": "https://github.com/Ameer-Jamal/RepoLens",
-    "stars": 2,
-    "forks": 0,
-    "openIssues": 0,
-    "updatedAt": "2026-06-03T14:36:21Z",
-    "defaultBranch": "main",
-    "homepage": ""
+    "defaultBranch": "master"
   },
   {
     "name": "readableSQL",
@@ -56,20 +30,51 @@
     "forks": 0,
     "openIssues": 0,
     "updatedAt": "2025-12-01T20:53:17Z",
-    "defaultBranch": "master",
-    "homepage": ""
+    "defaultBranch": "master"
   },
   {
-    "name": "RelayOps",
-    "description": "RelayOps is a public-first, local-first automation platform for browser-driven workflows. It ships with a Playwright-based Microsoft Teams Web adapter, a config-driven rules engine, SQLite-backed state, a CLI, a local API, and a lightweight local web admin GUI built with React and Vite.",
-    "language": "TypeScript",
-    "url": "https://github.com/Ameer-Jamal/RelayOps",
-    "stars": 0,
+    "name": "PingPoint",
+    "description": "PingPoint is a macOS status bar app that monitors network connectivity and provides immediate feedback of network status and quick changes of networks whenever you have a bad connection ",
+    "language": "Swift",
+    "url": "https://github.com/Ameer-Jamal/PingPoint",
+    "stars": 3,
     "forks": 0,
     "openIssues": 0,
-    "updatedAt": "2026-04-02T22:25:12Z",
-    "defaultBranch": "master",
-    "homepage": ""
+    "updatedAt": "2023-11-06T07:11:59Z",
+    "defaultBranch": "main"
+  },
+  {
+    "name": "RemoveImageBG",
+    "description": "Tired of websites charging you for image background removal in Full Quality?! With this open-source project, you no longer need to worry about those costs. This tool provides a user-friendly GUI application for removing backgrounds from images and applying adjustments like hue, contrast, brightness, shadows, and highlights.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/RemoveImageBG",
+    "stars": 3,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2025-10-28T16:15:51Z",
+    "defaultBranch": "main"
+  },
+  {
+    "name": "RepoLens",
+    "description": "UI and MCP designed to simplify the process of understanding and communicating changes made in Git repositories through AI Analysis.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/RepoLens",
+    "stars": 2,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-06-03T14:36:21Z",
+    "defaultBranch": "main"
+  },
+  {
+    "name": "macos-monitor-handshake-repair",
+    "description": "Utility script that forces macOS to re-detect external displays when the usual HDMI/DisplayPort handshake stalls.",
+    "language": "Shell",
+    "url": "https://github.com/Ameer-Jamal/macos-monitor-handshake-repair",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-04-09T19:58:58Z",
+    "defaultBranch": "master"
   },
   {
     "name": "DockerBacker",
@@ -80,19 +85,171 @@
     "forks": 0,
     "openIssues": 0,
     "updatedAt": "2026-04-16T01:33:22Z",
-    "defaultBranch": "master",
-    "homepage": null
+    "defaultBranch": "master"
   },
   {
     "name": "MemoryAnalyzer",
-    "description": "allows you to monitor and log CPU and memory usage for a specific process in real-time.",
+    "description": " allows you to monitor and log CPU and memory usage for a specific process in real-time. ",
     "language": "Python",
     "url": "https://github.com/Ameer-Jamal/MemoryAnalyzer",
     "stars": 1,
     "forks": 0,
     "openIssues": 0,
     "updatedAt": "2026-02-09T08:41:14Z",
-    "defaultBranch": "main",
-    "homepage": ""
+    "defaultBranch": "main"
+  },
+  {
+    "name": "Maven-Dependency-Update-Script",
+    "description": "This script automates the process of checking Maven projects for dependency updates. It provides options to check a single project or recursively search through nested projects, generating CSV and Excel reports of the dependencies that need updates.",
+    "language": "Shell",
+    "url": "https://github.com/Ameer-Jamal/Maven-Dependency-Update-Script",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2023-08-09T16:04:08Z",
+    "defaultBranch": "main"
+  },
+  {
+    "name": "Bookmarklets",
+    "description": "Here I have all my useful bookmarklets, I have also built a bookmarklet conversion tool in node so when you are done making your bookmarklet you can convert it into a ready to use url that you can bookmark",
+    "language": "JavaScript",
+    "url": "https://github.com/Ameer-Jamal/Bookmarklets",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2023-08-03T01:28:04Z",
+    "defaultBranch": "main"
+  },
+  {
+    "name": "AsciiArtToBash",
+    "description": "",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/AsciiArtToBash",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2025-05-22T20:09:49Z",
+    "defaultBranch": "master"
+  },
+  {
+    "name": "ExtractFolderContents",
+    "description": "copyDir is a simple command-line tool to copy readable code content from any directory into your clipboard. It supports all common code/text formats and skips binary or ignored folders.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/ExtractFolderContents",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2025-09-09T17:49:50Z",
+    "defaultBranch": "master"
+  },
+  {
+    "name": "WinFiRepair",
+    "description": "Windows Wi-Fi Repair",
+    "language": "PowerShell",
+    "url": "https://github.com/Ameer-Jamal/WinFiRepair",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2025-09-13T03:55:15Z",
+    "defaultBranch": "main"
+  },
+  {
+    "name": "FileGenerator",
+    "description": "GUI Application to generate mock data for large Excel, Tab Delimited, CSV and txt files ",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/FileGenerator",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2025-11-11T20:56:01Z",
+    "defaultBranch": "master"
+  },
+  {
+    "name": "JsonGuiEditor",
+    "description": "A gui JSON editor focused on creating form layouts ",
+    "language": "TypeScript",
+    "url": "https://github.com/Ameer-Jamal/JsonGuiEditor",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-02-09T08:38:04Z",
+    "defaultBranch": "master"
+  },
+  {
+    "name": "TestCaseAnalyzer",
+    "description": "TestCaseAnalyzer is a Python application specifically tailored for Angular applications using Jasmine and Karma for testing. It parses and analyzes test case logs to extract failed test cases along with the reasons for their failure. The results are then written to a temporary file for easy inspection.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/TestCaseAnalyzer",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2024-07-30T08:56:47Z",
+    "defaultBranch": "master"
+  },
+  {
+    "name": "SSM-Bridge",
+    "description": "SSM Bridge is a local MCP server and terminal CLI for running commands and moving files on AWS SSM-managed Linux instances.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/SSM-Bridge",
+    "stars": 0,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-06-08T18:52:38Z",
+    "defaultBranch": "master"
+  },
+  {
+    "name": "log-one",
+    "description": "Parse server logs, view deduplicated lines, extract SQL, and run local AI analysis via Ollama—no cloud API key required.",
+    "language": "TypeScript",
+    "url": "https://github.com/Ameer-Jamal/log-one",
+    "stars": 0,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-05-08T21:28:21Z",
+    "defaultBranch": "main"
+  },
+  {
+    "name": "KeyboardInject",
+    "description": "KeyboardInject is a Python tool that simulates human-like typing of your clipboard contents into any focused application. It uses PySide6 for a simple GUI and pyautogui for realistic typing.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/KeyboardInject",
+    "stars": 0,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-04-24T17:15:25Z",
+    "defaultBranch": "master"
+  },
+  {
+    "name": "RelayOps",
+    "description": "RelayOps is a public-first, local-first automation platform for browser-driven workflows. It ships with a Playwright-based Microsoft Teams Web adapter, a config-driven rules engine, SQLite-backed state, a CLI, a local API, and a lightweight local web admin GUI built with React and Vite.",
+    "language": "TypeScript",
+    "url": "https://github.com/Ameer-Jamal/RelayOps",
+    "stars": 0,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-04-02T22:25:12Z",
+    "defaultBranch": "master"
+  },
+  {
+    "name": "My-Python-Modules-MAC",
+    "description": "A Repo for my personal Python library made for MACOS. Contains utilities, functions, and classes used to help automate tasks and create modular Python programs.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/My-Python-Modules-MAC",
+    "stars": 0,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2023-07-19T19:25:12Z",
+    "defaultBranch": "main"
+  },
+  {
+    "name": "algorithm-implementations",
+    "description": "A place to showcase some algorithm implementations and testing I've done",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/algorithm-implementations",
+    "stars": 0,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2023-02-14T10:52:41Z",
+    "defaultBranch": "main"
   }
 ]

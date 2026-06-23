@@ -31,10 +31,10 @@ describe('shouldIncludeRepo', () => {
     );
   });
 
-  it('excludes portfolio noise names (case-insensitive)', () => {
+  it('rejects explicit legacy and profile repos', () => {
     assert.equal(
       shouldIncludeRepo({
-        name: 'Ameer-Jamal.github.io',
+        name: 'class-cloud-repo',
         fork: false,
         private: false,
       }),
@@ -50,10 +50,18 @@ describe('shouldIncludeRepo', () => {
     );
   });
 
-  it('includes a normal public repo', () => {
+  it('includes public repos outside the excluded set', () => {
     assert.equal(
       shouldIncludeRepo({
-        name: 'class-cloud-repo',
+        name: 'RepoLens',
+        fork: false,
+        private: false,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldIncludeRepo({
+        name: 'SomeNewPublicProject',
         fork: false,
         private: false,
       }),
@@ -136,6 +144,12 @@ describe('buildHighlightList', () => {
         fork: false,
         private: false,
       },
+      {
+        name: 'class-cloud-repo',
+        fork: false,
+        private: false,
+        stargazers_count: 500,
+      },
     ]);
     assert.equal(list.length, 2);
     assert.equal(list[0].name, 'high');
@@ -149,8 +163,10 @@ describe('buildHighlightList', () => {
 });
 
 describe('EXCLUDED_REPO_NAMES_LOWER', () => {
-  it('matches githubProjects.js excludes', () => {
+  it('matches githubProjects.js explicit exclusions', () => {
     assert.ok(EXCLUDED_REPO_NAMES_LOWER.has('ameer-jamal'));
-    assert.ok(EXCLUDED_REPO_NAMES_LOWER.has('ameer-jamal.github.io'));
+    assert.ok(EXCLUDED_REPO_NAMES_LOWER.has('class-cloud-repo'));
+    assert.ok(EXCLUDED_REPO_NAMES_LOWER.has('minmax-tictactoe'));
+    assert.ok(!EXCLUDED_REPO_NAMES_LOWER.has('repolens'));
   });
 });

@@ -1,11 +1,11 @@
 <header id="header">
-  <div class="logo">
+  <div class="logo" (click)="onLogoClick($event)" style="cursor: pointer;">
     <div class="logoPadder" style="padding-top: 5.5%;">
       <img class="logoImg" src="assets/images/Aj logo Circle.webp" alt="">
     </div>
   </div>
   <div class="content">
-    <div class="inner">
+    <div class="inner" style="user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">
       <h1>Ameer Jamal</h1>
       <p style="font-size: 1.2rem;margin: 0px 0px 0.1rem;">Software Engineer.</p>
       <div class="subIntro">
@@ -17,10 +17,9 @@
   </div>
   <nav>
     <ul>
-      <li><a href="#intro">About Me</a></li>
+      <li><a href="#CV">CV</a></li>
       <li><a href="#work">Projects</a></li>
-      <li><a href="#about">Education</a></li>
-      <li><a href="#contact">Contact Me</a></li>
+      <li><a href="#contact">Contact</a></li>
     </ul>
   </nav>
 </header>

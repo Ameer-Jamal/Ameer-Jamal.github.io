@@ -13,8 +13,7 @@ import { buildHighlightList } from './github-highlight-lib.mjs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-const OUT_ANGULAR = join(ROOT, 'angular/src/assets/data/github-highlight-repos.json');
-const OUT_ROOT = join(ROOT, 'assets/data/github-highlight-repos.json');
+const OUT_FILE = join(ROOT, 'src/assets/data/github-highlight-repos.json');
 
 function resolveToken() {
   return process.env.GH_PAT || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
@@ -34,9 +33,11 @@ export async function fetchAllUserRepos(owner, token) {
   let page = 1;
   const headers = {
     Accept: 'application/vnd.github+json',
-    Authorization: `Bearer ${token}`,
     'X-GitHub-Api-Version': '2022-11-28',
   };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   for (;;) {
     const url = new URL(`https://api.github.com/users/${owner}/repos`);
@@ -68,8 +69,7 @@ export async function fetchAllUserRepos(owner, token) {
 async function main() {
   const token = resolveToken();
   if (!token) {
-    console.warn('No GH_PAT / GITHUB_TOKEN / GH_TOKEN; skipping highlights refresh.');
-    process.exit(0);
+    console.warn('No GH_PAT / GITHUB_TOKEN / GH_TOKEN; using unauthenticated GitHub API rate limits.');
   }
 
   const owner = resolveOwner();
@@ -77,9 +77,8 @@ async function main() {
   const highlights = buildHighlightList(raw);
   const json = `${JSON.stringify(highlights, null, 2)}\n`;
 
-  writeFileSync(OUT_ANGULAR, json, 'utf8');
-  writeFileSync(OUT_ROOT, json, 'utf8');
-  console.log(`Wrote ${highlights.length} repos to:\n  ${OUT_ANGULAR}\n  ${OUT_ROOT}`);
+  writeFileSync(OUT_FILE, json, 'utf8');
+  console.log(`Wrote ${highlights.length} repos to ${OUT_FILE}`);
 }
 
 const isDirectRun =

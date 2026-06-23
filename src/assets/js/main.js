@@ -531,11 +531,6 @@ function submitAndResetForm() {
 					$('<div class="close">Close</div>')
 						.appendTo($this)
 						.on('click', function() {
-							// if you are on the cv take back to contact
-							if(location.hash=='#CV'){
-								location.hash='#contact'
-							}
-							else //take back to the main page
 							location.hash = '';
 							
 						});

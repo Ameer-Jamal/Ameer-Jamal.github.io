@@ -33,14 +33,13 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: angular/package-lock.json
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Unit tests (GitHub highlights + scripts)
         run: npm test
-
-      - name: Install dependencies
-        working-directory: angular
-        run: npm ci
 
       - name: Refresh GitHub highlights JSON
         env:
@@ -52,15 +51,14 @@ jobs:
         run: node scripts/refresh-github-highlights.mjs
 
       - name: Build
-        working-directory: angular
         run: npm run build
 
       - name: Resolve build output
         run: |
-          if [ -d "angular/dist/portfolio/browser" ]; then
-            echo "PAGES_DIR=angular/dist/portfolio/browser" >> "$GITHUB_ENV"
+          if [ -d "dist/portfolio/browser" ]; then
+            echo "PAGES_DIR=dist/portfolio/browser" >> "$GITHUB_ENV"
           else
-            echo "PAGES_DIR=angular/dist/portfolio" >> "$GITHUB_ENV"
+            echo "PAGES_DIR=dist/portfolio" >> "$GITHUB_ENV"
           fi
 
       - name: Upload Pages artifact

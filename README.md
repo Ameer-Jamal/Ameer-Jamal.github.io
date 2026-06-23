@@ -1,88 +1,58 @@
 # Ameer Jamal Portfolio
 
-Personal portfolio for showcasing projects, experience, and contact details. The site is deployed via GitHub Pages and mirrors the content hosted at https://ameer-jamal.github.io.
+Angular portfolio site for showcasing projects, experience, CV, and contact details. The production site is deployed to GitHub Pages at https://ameer-jamal.github.io.
 
----
+## Architecture
 
-## Overview
-- Single-page experience built on top of the HTML5Up framework with a custom design system.
-- Dynamic "GitHub Highlights" carousel pulls pinned repositories first, then falls back to the GitHub REST API, and renders each README using Marked.
-- README excerpts are sanitized, truncated, and rewritten so that images and links continue to work when embedded.
-- Fully responsive layout optimized for fast loading and accessible navigation.
-- Angular migration lives under `angular/` with the existing markup and scripts preserved.
+- Angular CLI app at the repository root.
+- App source lives in `src/app`.
+- Static assets live in `src/assets`.
+- GitHub project carousel data is loaded from GitHub first, with `src/assets/data/github-highlight-repos.json` as the static fallback.
+- `scripts/` and `tests/` are build support for refreshing and validating the GitHub highlights data.
 
----
-
-## Tech Stack
-- **Static site**: HTML5, CSS3, and vanilla JavaScript.
-- **Frameworks & libraries**: HTML5Up template, Font Awesome icons, Marked.js for Markdown parsing, and jQuery/responsive-tools utilities bundled with the theme.
-- **Data sources**: GitHub REST API and gh-pinned-repos for repository metadata.
-
----
+There is no legacy root `index.html` or duplicate static `assets/` app. Angular is the source of truth.
 
 ## Local Development
-1. Clone the repository  
-   ```bash
-   git clone https://github.com/Ameer-Jamal/Ameer-Jamal.github.io.git
-   cd Ameer-Jamal.github.io
-   ```
-2. Serve the site with any static server (examples below).  
-   ```bash
-   # Python
-   python3 -m http.server 4000
-
-   # or Node
-   npx serve
-   ```
-3. Visit http://localhost:4000 (or the port your server prints).
-
-The project does not require a build step; all assets are precompiled.
-
-### Angular App (migration)
-The Angular version is in `angular/` and loads the existing scripts after Angular renders the DOM.
 
 ```bash
-cd angular
 npm install
-npm run start
+npm start
 ```
 
----
+Open http://localhost:4200.
 
-## Testing
-Automated tests cover the GitHub projects module to ensure repository data is normalized correctly and README content is decoded safely.
+## Build
+
+```bash
+npm run build
+```
+
+The production build is written to `dist/portfolio`.
+
+## Tests
 
 ```bash
 npm test
 ```
 
-Ensure you are running Node.js 18+ (the repo uses the built-in node:test runner).
+This runs the Node-based tests for the GitHub highlights loader and refresh helpers.
 
----
+Angular/Karma tests can be run separately:
 
-## Project Structure
-- `index.html` – entry point and layout.
-- `assets/css` – site styles, including the main theme and noscript fallback.
-- `assets/js/githubProjects.js` – logic for fetching repositories, sanitizing Markdown, and rendering the carousel.
-- `assets/js/marked.min.js` – embedded Marked.js build for client-side Markdown parsing.
-- `tests/githubProjects.test.js` – Node-based unit tests for the GitHub integration layer.
-
----
+```bash
+npm run test:angular
+```
 
 ## Deployment
-The `main` branch publishes automatically to GitHub Pages. Pushing to `main` is sufficient to release updates to https://ameer-jamal.github.io.
 
-### Angular Deployment (planned)
-Run `npm run build` inside `angular/` and deploy the contents of `angular/dist/portfolio` to GitHub Pages (either the root of the repo or a `/docs` folder).
+GitHub Pages deployment is handled by `.github/workflows/deploy.yml`.
 
----
+On pushes to `main`, the workflow:
 
-## Credits
-- [Unsplash](https://unsplash.com) for royalty-free imagery.
-- [Font Awesome](https://fontawesome.com) for icons.
-- [Marked](https://marked.js.org) for Markdown rendering on the client.
+1. Installs root Angular dependencies with `npm ci`.
+2. Runs the Node test suite.
+3. Refreshes the GitHub highlights fallback JSON.
+4. Builds the Angular app.
+5. Uploads `dist/portfolio/browser` or `dist/portfolio` to GitHub Pages.
 
----
-
-## Contact
-Questions or collaboration ideas? Reach out via the contact section on the live site or open an issue in this repository.
+GitHub Pages should be configured to use **GitHub Actions** as the source.

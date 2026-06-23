@@ -6,6 +6,7 @@ import { IntroSectionComponent } from './components/intro-section/intro-section.
 import { ProjectsSectionComponent } from './components/projects-section/projects-section.component';
 import { SiteFooterComponent } from './components/site-footer/site-footer.component';
 import { SiteHeaderComponent } from './components/site-header/site-header.component';
+import { BackgroundCanvasComponent } from './components/background-canvas/background-canvas.component';
 
 @Component({
   selector: 'app-root',
@@ -17,7 +18,8 @@ import { SiteHeaderComponent } from './components/site-header/site-header.compon
     AboutSectionComponent,
     ContactSectionComponent,
     CvSectionComponent,
-    SiteFooterComponent
+    SiteFooterComponent,
+    BackgroundCanvasComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'

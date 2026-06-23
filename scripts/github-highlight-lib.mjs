@@ -1,9 +1,16 @@
 /**
  * Pure helpers for building github-highlight-repos.json (carousel fallback).
- * Logic mirrors angular/src/assets/js/githubProjects.js filterExcluded + non-fork filtering.
+ * Logic mirrors githubProjects.js explicit exclusions + non-fork filtering.
  */
 
-export const EXCLUDED_REPO_NAMES_LOWER = new Set(['ameer-jamal', 'ameer-jamal.github.io']);
+export const EXCLUDED_REPO_NAMES_LOWER = new Set([
+  'ameer-jamal',
+  'ameer-jamal.github.io',
+  'class-cloud-repo',
+  'minmax-tictactoe',
+  'realsoft-training-repo',
+  'madaincorp',
+]);
 
 /**
  * @param {object | null | undefined} repo

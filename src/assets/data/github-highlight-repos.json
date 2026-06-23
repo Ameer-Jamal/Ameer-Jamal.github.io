@@ -1,0 +1,98 @@
+[
+  {
+    "name": "ChatGpt-Material-Dark",
+    "description": "Transform your ChatGPT experience with a sleek material dark theme. This theme provides a visually pleasing dark mode with improved readability, ensuring a more comfortable and immersive user experience during extended chat sessions.",
+    "language": "Stylus",
+    "url": "https://github.com/Ameer-Jamal/ChatGpt-Material-Dark",
+    "stars": 8,
+    "forks": 1,
+    "openIssues": 0,
+    "updatedAt": "2026-06-17T19:56:52Z",
+    "defaultBranch": "main",
+    "homepage": "https://chromewebstore.google.com/detail/chatgpt-material-dark/kgnejlblhnimbflbcgfmoeckdbhllfcn?hl=en"
+  },
+  {
+    "name": "SSM-Bridge",
+    "description": "SSM Bridge is a local MCP server and terminal CLI for running commands and moving files on AWS SSM-managed Linux instances.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/SSM-Bridge",
+    "stars": 0,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-06-08T18:52:38Z",
+    "defaultBranch": "master",
+    "homepage": ""
+  },
+  {
+    "name": "localPilot",
+    "description": "LocalPilot - local, free, private AI for your JetBrains IDE With Optional AWS Models",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/localPilot",
+    "stars": 4,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-06-04T19:34:35Z",
+    "defaultBranch": "master",
+    "homepage": ""
+  },
+  {
+    "name": "RepoLens",
+    "description": "UI and MCP designed to simplify the process of understanding and communicating changes made in Git repositories through AI Analysis.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/RepoLens",
+    "stars": 2,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-06-03T14:36:21Z",
+    "defaultBranch": "main",
+    "homepage": ""
+  },
+  {
+    "name": "readableSQL",
+    "description": "A PyQt5-based GUI application that formats SQL INSERT, UPDATE, SET, and other blocks for improved readability. Supports optional embedded JSON formatting with a toggle.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/readableSQL",
+    "stars": 4,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2025-12-01T20:53:17Z",
+    "defaultBranch": "master",
+    "homepage": ""
+  },
+  {
+    "name": "RelayOps",
+    "description": "RelayOps is a public-first, local-first automation platform for browser-driven workflows. It ships with a Playwright-based Microsoft Teams Web adapter, a config-driven rules engine, SQLite-backed state, a CLI, a local API, and a lightweight local web admin GUI built with React and Vite.",
+    "language": "TypeScript",
+    "url": "https://github.com/Ameer-Jamal/RelayOps",
+    "stars": 0,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-04-02T22:25:12Z",
+    "defaultBranch": "master",
+    "homepage": ""
+  },
+  {
+    "name": "DockerBacker",
+    "description": "A tool to allow docker volume and DataBase Backups/restores on the fly",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/DockerBacker",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-04-16T01:33:22Z",
+    "defaultBranch": "master",
+    "homepage": null
+  },
+  {
+    "name": "MemoryAnalyzer",
+    "description": "allows you to monitor and log CPU and memory usage for a specific process in real-time.",
+    "language": "Python",
+    "url": "https://github.com/Ameer-Jamal/MemoryAnalyzer",
+    "stars": 1,
+    "forks": 0,
+    "openIssues": 0,
+    "updatedAt": "2026-02-09T08:41:14Z",
+    "defaultBranch": "main",
+    "homepage": ""
+  }
+]

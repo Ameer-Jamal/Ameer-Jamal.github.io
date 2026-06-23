@@ -8,6 +8,7 @@ import {
   resolvePerformanceProfile,
   upgradeTier
 } from '../../utils/performance-profile';
+import { SpatialHash } from '../../utils/spatial-hash';
 
 type GameState = 'DRIFT' | 'SWARM' | 'CHARGING' | 'SINGULARITY' | 'EXPLODING' | 'MOON_DANCE';
 
@@ -191,20 +192,22 @@ interface CosmicEasterEgg {
       <div class="sandbox-panel" [class.sandbox-panel--open]="isSandboxOpen">
         <button
           class="sandbox-panel__close"
+          type="button"
           (click)="toggleSandboxBar()"
           aria-label="Close sandbox panel">
-          ×
+          <span class="sandbox-panel__close-icon" aria-hidden="true"></span>
         </button>
         <div class="sandbox-panel__header">
           <div class="sandbox-panel__header-row">
             <span class="sandbox-panel__title">SANDBOX UNIVERSE CREATOR</span>
             <button
               class="sandbox-pin"
+              type="button"
               [class.sandbox-pin--active]="isSandboxPinned"
               (click)="toggleSandboxPin()"
               [attr.aria-pressed]="isSandboxPinned"
               [attr.aria-label]="isSandboxPinned ? 'Unpin sandbox panel' : 'Pin sandbox panel'">
-              {{ isSandboxPinned ? '📌' : '📍' }}
+              <i class="fas fa-thumbtack sandbox-pin__icon" aria-hidden="true"></i>
             </button>
           </div>
           <span class="sandbox-panel__subtitle">Place objects, switch tools, combine powers — CLEAR resets the world</span>
@@ -402,33 +405,68 @@ interface CosmicEasterEgg {
     .sandbox-panel--open {
       transform: translate(-50%, 25px);
     }
+    .sandbox-panel__close,
+    .sandbox-pin {
+      appearance: none !important;
+      -webkit-appearance: none !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      width: 32px !important;
+      height: 32px !important;
+      min-height: 32px !important;
+      max-height: 32px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      line-height: 1 !important;
+      letter-spacing: normal !important;
+      text-transform: none !important;
+      white-space: nowrap !important;
+      text-align: center !important;
+      font-weight: 400 !important;
+      box-shadow: none !important;
+      border-radius: 50% !important;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      flex-shrink: 0;
+    }
     .sandbox-panel__close {
       position: absolute;
       top: 10px;
       right: 10px;
       z-index: 1;
-      appearance: none;
-      -webkit-appearance: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px;
-      height: 32px;
-      padding: 0;
-      border-radius: 50%;
-      border: 1px solid rgba(0, 240, 255, 0.35);
-      background: rgba(10, 15, 30, 0.65);
-      color: #00f0ff;
-      font-size: 1.25rem;
-      line-height: 1;
-      cursor: pointer;
-      transition: all 0.25s ease;
+      border: 1px solid rgba(0, 240, 255, 0.35) !important;
+      background: rgba(10, 15, 30, 0.65) !important;
+      color: #00f0ff !important;
+    }
+    .sandbox-panel__close-icon {
+      position: relative;
+      display: block;
+      width: 12px;
+      height: 12px;
+    }
+    .sandbox-panel__close-icon::before,
+    .sandbox-panel__close-icon::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 12px;
+      height: 2px;
+      background: currentColor;
+      border-radius: 1px;
+    }
+    .sandbox-panel__close-icon::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+    .sandbox-panel__close-icon::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
     }
     .sandbox-panel__close:hover {
-      background: rgba(0, 240, 255, 0.12);
-      border-color: #00f0ff;
-      color: #ffffff;
-      box-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
+      background: rgba(0, 240, 255, 0.12) !important;
+      border-color: #00f0ff !important;
+      color: #ffffff !important;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.35) !important;
     }
     .sandbox-panel__header {
       display: flex;
@@ -444,35 +482,32 @@ interface CosmicEasterEgg {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
+      padding-right: 28px;
     }
     .sandbox-pin {
-      appearance: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.04);
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 0.62rem;
-      font-weight: 700;
-      letter-spacing: 0.06rem;
-      cursor: pointer;
-      transition: all 0.25s ease;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+      background: rgba(255, 255, 255, 0.04) !important;
+      color: rgba(255, 255, 255, 0.7) !important;
+    }
+    .sandbox-pin__icon {
+      display: block;
+      font-size: 0.72rem;
+      line-height: 1;
+      transform: rotate(45deg);
+      transform-origin: center center;
     }
     .sandbox-pin:hover {
-      border-color: rgba(0, 240, 255, 0.45);
-      color: #ffffff;
+      border-color: rgba(0, 240, 255, 0.45) !important;
+      color: #ffffff !important;
     }
     .sandbox-pin--active {
-      border-color: #00f0ff;
-      background: rgba(0, 240, 255, 0.12);
-      color: #00f0ff;
-      box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+      border-color: #00f0ff !important;
+      background: rgba(0, 240, 255, 0.12) !important;
+      color: #00f0ff !important;
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.2) !important;
     }
-    .sandbox-pin__label {
-      text-transform: uppercase;
+    .sandbox-pin--active .sandbox-pin__icon {
+      transform: rotate(0deg);
     }
     .sandbox-panel__nursery-count {
       font-size: 0.62rem;
@@ -493,18 +528,27 @@ interface CosmicEasterEgg {
       color: rgba(255, 255, 255, 0.5);
       letter-spacing: 0.05rem;
     }
+    .sandbox-panel__body {
+      flex: 0 1 auto;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
     .sandbox-panel__tools {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 12px;
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
     }
     @media (max-width: 600px) {
       .sandbox-panel {
         padding: 16px;
+        height: calc(100dvh - 24px);
         max-height: calc(100dvh - 24px);
       }
       .sandbox-panel--open {
@@ -612,6 +656,7 @@ interface CosmicEasterEgg {
       border-top: 1px solid rgba(255, 255, 255, 0.1);
       padding-top: 14px;
       flex-shrink: 0;
+      margin-top: auto;
     }
     .sandbox-panel__hint {
       font-size: 0.6rem;
@@ -787,6 +832,13 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   private meteorShowerDelay = 0;
 
   private animationFrameId: number | null = null;
+  private animationPaused = false;
+  private canvasWidth = 0;
+  private canvasHeight = 0;
+  private galaxyFrameTick = 0;
+  private readonly particleSpatialHash = new SpatialHash(200);
+  private readonly spatialQueryBuffer: number[] = [];
+  private static readonly MAX_LINKS_INTENSE = 6;
 
   // Adaptive performance profile (static device tier + runtime FPS governor)
   private performanceProfile!: PerformanceProfile;
@@ -842,9 +894,41 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.stopAnimationLoop();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    if (document.hidden) {
+      this.stopAnimationLoop();
+      this.animationPaused = true;
+      return;
+    }
+    if (this.animationPaused) {
+      this.animationPaused = false;
+      this.resetFpsGovernorStreaks();
+      this.ngZone.runOutsideAngular(() => {
+        this.animate();
+      });
+    }
+  }
+
+  private stopAnimationLoop(): void {
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
     }
+  }
+
+  private resetFpsGovernorStreaks(): void {
+    this.fpsLowStreak = 0;
+    this.fpsHighStreak = 0;
+    this.fpsFrameDeltas = [];
+    this.lastFrameTime = 0;
+    this.fpsGovernorCooldown = 0;
   }
 
   @HostListener('window:resize')
@@ -925,19 +1009,38 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.fpsHighStreak = 0;
   }
 
-  private updateMouseCoords(event: MouseEvent): void {
+  private updatePointerCoords(clientX: number, clientY: number): void {
     const canvas = this.canvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
-    this.mouse.x = event.clientX - rect.left;
-    this.mouse.y = event.clientY - rect.top;
+    this.mouse.x = clientX - rect.left;
+    this.mouse.y = clientY - rect.top;
   }
 
-  @HostListener('window:mousemove', ['$event'])
-  onMouseMove(event: MouseEvent): void {
+  private clearPointerState(): void {
+    if (this.activePower === 'DEFAULT' && !this.isMouseDown && (this.state === 'SWARM' || this.state === 'CHARGING')) {
+      this.triggerRandomStopAction();
+    }
+    this.mouse.active = false;
+    this.mouse.x = -1000;
+    this.mouse.y = -1000;
+    this.mouseVelocity.x = 0;
+    this.mouseVelocity.y = 0;
+    this.mouseMoving = false;
+    this.isMouseDown = false;
+  }
+
+  private clearTouchPointerStateIfNeeded(event: PointerEvent): void {
+    if (event.pointerType === 'touch') {
+      this.clearPointerState();
+    }
+  }
+
+  @HostListener('window:pointermove', ['$event'])
+  onPointerMove(event: PointerEvent): void {
     const prevX = this.mouse.x;
     const prevY = this.mouse.y;
 
-    this.updateMouseCoords(event);
+    this.updatePointerCoords(event.clientX, event.clientY);
 
     if (prevX !== -1000) {
       this.mouseVelocity.x = this.mouse.x - prevX;
@@ -964,22 +1067,25 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.mouseMoving = true;
   }
 
-  @HostListener('window:mouseleave')
-  onMouseLeave(): void {
-    if (this.activePower === 'DEFAULT' && !this.isMouseDown && (this.state === 'SWARM' || this.state === 'CHARGING')) {
-      this.triggerRandomStopAction();
+  @HostListener('window:pointerleave', ['$event'])
+  onPointerLeave(event: PointerEvent): void {
+    if (event.pointerType !== 'mouse') {
+      return;
     }
-    this.mouse.active = false;
-    this.mouse.x = -1000;
-    this.mouse.y = -1000;
-    this.mouseVelocity.x = 0;
-    this.mouseVelocity.y = 0;
-    this.mouseMoving = false;
-    this.isMouseDown = false;
+    this.clearPointerState();
   }
 
-  @HostListener('window:mousedown', ['$event'])
-  onMouseDown(event: MouseEvent): void {
+  @HostListener('window:pointercancel', ['$event'])
+  onPointerCancel(event: PointerEvent): void {
+    if (!this.isMouseDown) {
+      this.clearTouchPointerStateIfNeeded(event);
+      return;
+    }
+    this.onPointerUp(event);
+  }
+
+  @HostListener('window:pointerdown', ['$event'])
+  onPointerDown(event: PointerEvent): void {
     if (this.state === 'SINGULARITY' || this.state === 'MOON_DANCE') {
       return;
     }
@@ -990,7 +1096,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       const trigger = document.querySelector('.sandbox-trigger');
       const hint = document.querySelector('.sandbox-trigger-hint');
       if (
-        panel?.contains(event.target as Node) || 
+        panel?.contains(event.target as Node) ||
         trigger?.contains(event.target as Node) ||
         hint?.contains(event.target as Node)
       ) {
@@ -1004,7 +1110,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.updateMouseCoords(event);
+    this.updatePointerCoords(event.clientX, event.clientY);
     this.mouse.active = true;
     this.isMouseDown = true;
     this.chargeTime = 0;
@@ -1017,14 +1123,15 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     }
   }
 
-  @HostListener('window:mouseup', ['$event'])
-  onMouseUp(event: MouseEvent): void {
+  @HostListener('window:pointerup', ['$event'])
+  onPointerUp(event: PointerEvent): void {
     if (!this.isMouseDown) {
       return;
     }
     this.isMouseDown = false;
 
     if (this.state === 'SINGULARITY' || this.state === 'MOON_DANCE') {
+      this.clearTouchPointerStateIfNeeded(event);
       return;
     }
 
@@ -1033,15 +1140,17 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       const panel = document.querySelector('.sandbox-panel');
       const trigger = document.querySelector('.sandbox-trigger');
       if (panel?.contains(event.target as Node) || trigger?.contains(event.target as Node)) {
+        this.clearTouchPointerStateIfNeeded(event);
         return;
       }
     }
 
-    this.updateMouseCoords(event);
+    this.updatePointerCoords(event.clientX, event.clientY);
 
     if (this.activePower !== 'DEFAULT') {
       this.handleSandboxPowerRelease();
       this.pauseMouseGravity(90);
+      this.clearTouchPointerStateIfNeeded(event);
       return;
     }
 
@@ -1051,6 +1160,28 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       this.transitionTo('EXPLODING');
       this.triggerNormalClickShockwave();
     }
+
+    this.clearTouchPointerStateIfNeeded(event);
+  }
+
+  /** @deprecated Use onPointerMove — kept for unit tests */
+  onMouseMove(event: MouseEvent): void {
+    this.onPointerMove(event as PointerEvent);
+  }
+
+  /** @deprecated Use onPointerLeave — kept for unit tests */
+  onMouseLeave(): void {
+    this.clearPointerState();
+  }
+
+  /** @deprecated Use onPointerDown — kept for unit tests */
+  onMouseDown(event: MouseEvent): void {
+    this.onPointerDown(event as PointerEvent);
+  }
+
+  /** @deprecated Use onPointerUp — kept for unit tests */
+  onMouseUp(event: MouseEvent): void {
+    this.onPointerUp(event as PointerEvent);
   }
 
   @HostListener('window:logo-blackhole-trigger')
@@ -1453,6 +1584,8 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     this.ctx.scale(dpr, dpr);
+    this.canvasWidth = width;
+    this.canvasHeight = height;
   }
 
   private initNebulas(): void {
@@ -1579,8 +1712,9 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.ctx.arc(lensedCore.x, lensedCore.y, g.size * 0.35, 0, Math.PI * 2);
     this.ctx.fill();
 
-    // Spiral arms of tiny stars
+    // Spiral arms of tiny stars (single batched path)
     this.ctx.fillStyle = `rgba(${g.color}, 0.28)`;
+    this.ctx.beginPath();
     for (let i = 0; i < g.starCount; i++) {
       // Deterministic offset calculations based on indices so they don't flicker
       const t = i / g.starCount; // normalized radius offset
@@ -1603,11 +1737,11 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       
       // Star dimensions shrink outward
       const radius = (1.0 - t) * 1.1 + 0.35;
-      
-      this.ctx.beginPath();
+
+      this.ctx.moveTo(pt.x + radius, pt.y);
       this.ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2);
-      this.ctx.fill();
     }
+    this.ctx.fill();
   }
 
   private updateAndDrawComets(width: number, height: number): void {
@@ -2019,16 +2153,17 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   }
 
   private animate(): void {
+    if (this.animationPaused) {
+      return;
+    }
     this.tickFpsGovernor(typeof performance !== 'undefined' ? performance.now() : Date.now());
     this.draw();
     this.animationFrameId = requestAnimationFrame(() => this.animate());
   }
 
   private draw(): void {
-    const canvas = this.canvasRef.nativeElement;
-    const rect = canvas.getBoundingClientRect();
-    const width = rect.width || window.innerWidth;
-    const height = rect.height || window.innerHeight;
+    const width = this.canvasWidth || window.innerWidth;
+    const height = this.canvasHeight || window.innerHeight;
 
     // Auto close sandbox if website article modal is opened
     if (typeof document !== 'undefined' && document.body.classList.contains('is-article-visible')) {
@@ -2317,10 +2452,14 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     }
 
     // 1.5. Draw rotating background galaxies
+    this.galaxyFrameTick++;
+    const galaxyStride = this.performanceProfile.galaxyUpdateStride;
     const gLength = this.backgroundGalaxies.length;
     for (let i = 0; i < gLength; i++) {
       const g = this.backgroundGalaxies[i];
-      g.rotation += g.rotationSpeed;
+      if (this.galaxyFrameTick % galaxyStride === 0) {
+        g.rotation += g.rotationSpeed * galaxyStride;
+      }
       this.drawGalaxy(g);
     }
 
@@ -2476,14 +2615,9 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       // Energy lightning arcs jumping into cursor hotspot from surrounding stars
       if (Math.random() < 0.38) {
         const attractionDist = this.mouseAttractDistance + chargeProgress * 240;
-        const closeNodes = this.particles.filter(p => {
-          const dx = p.x - this.mouse.x;
-          const dy = p.y - this.mouse.y;
-          return Math.sqrt(dx*dx + dy*dy) < attractionDist;
-        });
-        if (closeNodes.length > 0) {
-          const p = closeNodes[Math.floor(Math.random() * closeNodes.length)];
-          this.drawMiniChargeArc(this.mouse.x, this.mouse.y, p.x, p.y);
+        const nearby = this.findRandomNearbyParticle(this.mouse.x, this.mouse.y, attractionDist);
+        if (nearby) {
+          this.drawMiniChargeArc(this.mouse.x, this.mouse.y, nearby.x, nearby.y);
         }
       }
     }
@@ -2688,6 +2822,20 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     // 11. Update & Render main interactive constellation particles
     const pLength = this.particles.length;
     const glowAmplitude = 0.15 + (Math.sin(Date.now() / 400) + 1.0) * 0.5 * 0.25;
+
+    this.particleSpatialHash.clear();
+    for (let h = 0; h < pLength; h++) {
+      const ph = this.particles[h];
+      this.particleSpatialHash.insert(h, ph.x, ph.y);
+    }
+
+    const intenseMesh = this.isIntenseParticleMesh();
+    const meshConnectionDist = this.state === 'DRIFT'
+      ? this.scaledConnectionDistance * 0.78
+      : (this.state === 'MOON_DANCE' ? this.scaledConnectionDistance * 1.35 : this.scaledConnectionDistance);
+    const meshLimitSq = meshConnectionDist * meshConnectionDist;
+    const flockRange = 180;
+    const breedingRange = 18;
 
     for (let i = pLength - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -2980,11 +3128,13 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         let separationY = 0;
         let neighborCount = 0;
 
-        const flockRangeSq = 180 * 180;
+        const flockRangeSq = flockRange * flockRange;
         const separationRange = 65; // subtle spacing
         const separationRangeSq = separationRange * separationRange;
 
-        for (let j = 0; j < this.particles.length; j++) {
+        const flockNeighbors = this.particleSpatialHash.queryRadius(p.x, p.y, flockRange, this.spatialQueryBuffer);
+        for (let n = 0; n < flockNeighbors.length; n++) {
+          const j = flockNeighbors[n];
           if (i === j) continue;
           const p2 = this.particles[j];
           if (!p2 || !p2.flockable || p2.isDying || p2.birthProgress < 1.0) continue;
@@ -3151,7 +3301,11 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
       // I. Particle mating/breeding (on close collision)
       if (!this.performanceProfile.skipBreeding && !p.isDying && p.birthProgress >= 1.0) {
-        for (let j = i - 1; j >= 0; j--) {
+        const breedingRangeSq = breedingRange * breedingRange;
+        const breedNeighbors = this.particleSpatialHash.queryRadius(p.x, p.y, breedingRange, this.spatialQueryBuffer);
+        for (let n = 0; n < breedNeighbors.length; n++) {
+          const j = breedNeighbors[n];
+          if (j >= i) continue;
           const p2 = this.particles[j];
           if (p2.isDying || p2.birthProgress < 1.0) continue;
 
@@ -3159,7 +3313,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
           const dy = p.y - p2.y;
           const distSq = dx * dx + dy * dy;
 
-          if (distSq < 18 * 18) {
+          if (distSq < breedingRangeSq) {
             if (Math.random() < 0.005) {
               const mx = (p.x + p2.x) / 2;
               const my = (p.y + p2.y) / 2;
@@ -3171,24 +3325,27 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       }
 
       // J. Render constellation links
-      for (let j = i - 1; j >= 0; j--) {
+      let linksDrawn = 0;
+      const linkNeighbors = this.particleSpatialHash.queryRadius(p.x, p.y, meshConnectionDist, this.spatialQueryBuffer);
+      for (let n = 0; n < linkNeighbors.length; n++) {
+        const j = linkNeighbors[n];
+        if (j >= i) continue;
+        if (intenseMesh && linksDrawn >= BackgroundCanvasComponent.MAX_LINKS_INTENSE) {
+          break;
+        }
         const p2 = this.particles[j];
         const dx = p.x - p2.x;
         const dy = p.y - p2.y;
         const distSq = dx * dx + dy * dy;
-        const currentConnectionDist = this.state === 'DRIFT'
-          ? this.scaledConnectionDistance * 0.78
-          : (this.state === 'MOON_DANCE' ? this.scaledConnectionDistance * 1.35 : this.scaledConnectionDistance);
-        const limitSq = currentConnectionDist * currentConnectionDist;
 
-        if (distSq < limitSq) {
+        if (distSq < meshLimitSq) {
           const dist = Math.sqrt(distSq);
           
           let baseAlphaCoeff = this.state === 'DRIFT' ? 0.16 : 0.35;
           if (this.state === 'MOON_DANCE') {
             baseAlphaCoeff = 0.50; // extra glow for the cosmic whirlpool mesh
           }
-          let alpha = (1 - dist / currentConnectionDist) * baseAlphaCoeff;
+          let alpha = (1 - dist / meshConnectionDist) * baseAlphaCoeff;
           if ((this.state === 'SWARM' || this.state === 'CHARGING') && this.isMouseGravityActive()) {
             alpha *= 1.45;
           } else if (this.state === 'DRIFT' && p.behaviorState === 'DECELERATE' && p2.behaviorState === 'DECELERATE') {
@@ -3221,6 +3378,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
             this.ctx.strokeStyle = strokeStyle;
             this.ctx.lineWidth = lineWidth;
             this.ctx.stroke();
+            linksDrawn++;
           }
         }
       }
@@ -4022,18 +4180,11 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
     const charge = this.getSandboxChargeProgress();
     const zapCount = Math.max(1, Math.floor((2 + Math.floor(charge * 3)) * this.performanceProfile.effectScale));
-    const sorted = [...this.particles]
-      .map(p => {
-        const dx = p.x - this.mouse.x;
-        const dy = p.y - this.mouse.y;
-        return { particle: p, dist: Math.sqrt(dx * dx + dy * dy) };
-      })
-      .sort((a, b) => a.dist - b.dist)
-      .slice(0, zapCount);
+    const zapIndices = this.findNearestParticleIndices(this.mouse.x, this.mouse.y, zapCount, 420);
 
-    for (const entry of sorted) {
-      const p = entry.particle;
-      if (entry.dist > 420) {
+    for (const idx of zapIndices) {
+      const p = this.particles[idx];
+      if (!p) {
         continue;
       }
 
@@ -4053,6 +4204,66 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
         alpha: 0.75
       });
     }
+  }
+
+  private isIntenseParticleMesh(): boolean {
+    return this.state === 'MOON_DANCE'
+      || this.sandboxBlackholes.length > 0
+      || this.wormholes.length > 0
+      || (this.isSandboxOpen && this.activePower !== 'DEFAULT');
+  }
+
+  private findRandomNearbyParticle(cx: number, cy: number, maxDist: number): Particle | null {
+    const maxDistSq = maxDist * maxDist;
+    const len = this.particles.length;
+    if (len === 0) {
+      return null;
+    }
+
+    const scanCount = Math.min(12, len);
+    const start = Math.floor(Math.random() * len);
+    let best: Particle | null = null;
+    let bestDistSq = maxDistSq;
+
+    for (let n = 0; n < scanCount; n++) {
+      const p = this.particles[(start + n) % len];
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        best = p;
+      }
+    }
+
+    return best;
+  }
+
+  private findNearestParticleIndices(cx: number, cy: number, count: number, maxDist: number): number[] {
+    const maxDistSq = maxDist * maxDist;
+    const nearest: { idx: number; distSq: number }[] = [];
+
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > maxDistSq) {
+        continue;
+      }
+
+      if (nearest.length < count) {
+        nearest.push({ idx: i, distSq });
+        if (nearest.length === count) {
+          nearest.sort((a, b) => a.distSq - b.distSq);
+        }
+      } else if (distSq < nearest[nearest.length - 1].distSq) {
+        nearest[nearest.length - 1] = { idx: i, distSq };
+        nearest.sort((a, b) => a.distSq - b.distSq);
+      }
+    }
+
+    return nearest.map(entry => entry.idx);
   }
 
   private updateAndDrawSandboxElements(width: number, height: number): void {

@@ -13,6 +13,7 @@ export interface PerformanceProfile {
   skipPulsarRings: boolean;
   skipDomTremble: boolean;
   effectScale: number;
+  galaxyUpdateStride: number;
 }
 
 export interface PerformanceDetectionContext {
@@ -36,7 +37,8 @@ const PROFILES: Record<PerformanceTier, PerformanceProfile> = {
     skipBreeding: false,
     skipPulsarRings: false,
     skipDomTremble: false,
-    effectScale: 1.0
+    effectScale: 1.0,
+    galaxyUpdateStride: 1
   },
   medium: {
     tier: 'medium',
@@ -50,7 +52,8 @@ const PROFILES: Record<PerformanceTier, PerformanceProfile> = {
     skipBreeding: false,
     skipPulsarRings: false,
     skipDomTremble: true,
-    effectScale: 0.65
+    effectScale: 0.65,
+    galaxyUpdateStride: 2
   },
   low: {
     tier: 'low',
@@ -64,7 +67,8 @@ const PROFILES: Record<PerformanceTier, PerformanceProfile> = {
     skipBreeding: true,
     skipPulsarRings: true,
     skipDomTremble: true,
-    effectScale: 0.4
+    effectScale: 0.4,
+    galaxyUpdateStride: 3
   }
 };
 

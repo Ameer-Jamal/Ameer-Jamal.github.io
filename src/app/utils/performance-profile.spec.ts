@@ -63,5 +63,7 @@ describe('performance-profile', () => {
     const high = getProfileForTier('high');
     high.maxParticles = 1;
     expect(getProfileForTier('high').maxParticles).toBe(145);
+    expect(getProfileForTier('medium').galaxyUpdateStride).toBe(2);
+    expect(getProfileForTier('low').galaxyUpdateStride).toBe(3);
   });
 });

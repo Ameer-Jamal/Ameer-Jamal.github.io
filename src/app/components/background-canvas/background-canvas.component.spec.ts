@@ -76,6 +76,55 @@ describe('BackgroundCanvasComponent', () => {
     expect(component['performanceProfile'].tier).toBe('medium');
   });
 
+  it('should pause and resume the animation loop on visibility change', () => {
+    if (component['animationFrameId'] !== null) {
+      cancelAnimationFrame(component['animationFrameId']!);
+      component['animationFrameId'] = null;
+    }
+
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    component.onVisibilityChange();
+    expect(component['animationPaused']).toBe(true);
+    expect(component['animationFrameId']).toBeNull();
+
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    component.onVisibilityChange();
+    expect(component['animationPaused']).toBe(false);
+    expect(component['animationFrameId']).not.toBeNull();
+
+    cancelAnimationFrame(component['animationFrameId']!);
+    component['animationFrameId'] = null;
+  });
+
+  it('should find the nearest particle within range without scanning the full array', () => {
+    component['particles'] = [
+      { x: 200, y: 100 } as never,
+      { x: 108, y: 100 } as never,
+      { x: 900, y: 900 } as never
+    ];
+    const nearest = component['findRandomNearbyParticle'](100, 100, 20);
+    expect(nearest?.x).toBe(108);
+  });
+
+  it('should find the closest particle indices for Tesla zaps', () => {
+    component['particles'] = [
+      { x: 100, y: 100 } as never,
+      { x: 120, y: 100 } as never,
+      { x: 400, y: 400 } as never
+    ];
+    const indices = component['findNearestParticleIndices'](100, 100, 2, 200);
+    expect(indices.length).toBe(2);
+    expect(indices).toContain(0);
+    expect(indices).toContain(1);
+    expect(indices).not.toContain(2);
+  });
+
+  it('should cache canvas dimensions after resize', () => {
+    component['resizeCanvas']();
+    expect(component['canvasWidth']).toBeGreaterThan(0);
+    expect(component['canvasHeight']).toBeGreaterThan(0);
+  });
+
   it('should transition game state correctly', () => {
     component['transitionTo']('SWARM');
     expect(component['state']).toBe('SWARM');
@@ -267,6 +316,7 @@ describe('BackgroundCanvasComponent', () => {
         y: 0,
         toJSON: () => {}
       } as DOMRect);
+      component['resizeCanvas']();
     });
 
     it('should toggle the sandbox open state', () => {
@@ -547,6 +597,7 @@ describe('BackgroundCanvasComponent', () => {
       component['wormholes'][0].y = 100;
       component['wormholes'][1].x = 500;
       component['wormholes'][1].y = 500;
+      component['wormholeHypergateTimer'] = 0;
       
       // Put a particle at 101, 100 (near entry at 100, 100)
       component['particles'] = [{
@@ -745,6 +796,64 @@ describe('BackgroundCanvasComponent', () => {
       // vx increases by mouseVelocity.x * force * 0.25 = 10.0 * 0.928 * 0.25 = ~2.32
       expect(component['particles'][0].vx).toBeGreaterThan(0);
       expect(component['particles'][0].vy).toBeLessThan(0);
+    });
+  });
+
+  describe('touch pointer tracking', () => {
+    function touchPointerEvent(
+      type: string,
+      clientX: number,
+      clientY: number,
+      pointerType = 'touch'
+    ): PointerEvent {
+      return new PointerEvent(type, {
+        clientX,
+        clientY,
+        pointerType,
+        bubbles: true,
+        cancelable: true
+      });
+    }
+
+    it('should update coords and mouseMoving on touch pointermove', () => {
+      component.onPointerMove(touchPointerEvent('pointermove', 150, 200));
+      expect(component['mouse'].x).toBe(150);
+      expect(component['mouse'].y).toBe(200);
+      expect(component['mouse'].active).toBe(true);
+      expect(component['mouseMoving']).toBe(true);
+    });
+
+    it('should transition to SWARM on touch pointermove while in DRIFT', () => {
+      component['state'] = 'DRIFT';
+      component.onPointerMove(touchPointerEvent('pointermove', 120, 110));
+      expect(component['state']).toBe('SWARM');
+    });
+
+    it('should update coords during touch drag while charging', () => {
+      component['state'] = 'DRIFT';
+      component.onPointerDown(touchPointerEvent('pointerdown', 100, 100));
+      component.onPointerMove(touchPointerEvent('pointermove', 180, 220));
+      expect(component['mouse'].x).toBe(180);
+      expect(component['mouse'].y).toBe(220);
+      expect(component['state']).toBe('CHARGING');
+    });
+
+    it('should clear pointer state after touch pointerup', () => {
+      component['state'] = 'DRIFT';
+      component.onPointerDown(touchPointerEvent('pointerdown', 100, 100));
+      component.onPointerUp(touchPointerEvent('pointerup', 100, 100));
+      expect(component['mouse'].x).toBe(-1000);
+      expect(component['mouse'].y).toBe(-1000);
+      expect(component['mouse'].active).toBe(false);
+      expect(component['mouseMoving']).toBe(false);
+    });
+
+    it('should not clear pointer state on mouse pointerup', () => {
+      component['state'] = 'DRIFT';
+      component.onPointerDown(touchPointerEvent('pointerdown', 100, 100, 'mouse'));
+      component.onPointerUp(touchPointerEvent('pointerup', 100, 100, 'mouse'));
+      expect(component['mouse'].active).toBe(true);
+      expect(component['mouse'].x).toBe(100);
     });
   });
 });

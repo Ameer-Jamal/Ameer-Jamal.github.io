@@ -31,6 +31,7 @@
 		text-decoration: none;
 		text-transform: uppercase;
 		white-space: nowrap;
+		@include vendor('user-select', 'none');
 
 		&:hover {
 			background-color: _palette(border-bg);

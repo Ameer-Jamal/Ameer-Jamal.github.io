@@ -41,11 +41,13 @@ export interface CosmicWorld {
   uiAnchors: { x: number; y: number }[];
   lastAnchorUpdate: number;
   isLogoBlackholeActive: boolean;
+  isAyaDanceActive: boolean;
   logoBlackholeTimer: number;
   logoElements: HTMLElement[];
   logoOrigPositions: { dx: number; dy: number }[];
   pageExplodeActive: boolean;
   pageExplodeTimer: number;
+  pageExplodeStartTime: number;
   screenFlash: number;
   blackoutAlpha: number;
   isSandboxOpen: boolean;
@@ -84,6 +86,17 @@ export interface CosmicWorld {
   fpsHighStreak: number;
   fpsGovernorCooldown: number;
   lastFrameTime: number;
+  ayaEasterEggCooldownUntil: number;
+  ayaFormationCenterX: number;
+  ayaFormationCenterY: number;
+  loadingSpinnerAngle: number;
+  loadingSpinnerCenterX: number;
+  loadingSpinnerCenterY: number;
+  loadingSpinnerRadius: number;
+  loadingStartedAt: number;
+  pageReadyAt: number;
+  pageAssetsReady: boolean;
+  pageLoadCompleteTriggered: boolean;
 }
 
 export function createCosmicWorld(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): CosmicWorld {
@@ -106,11 +119,13 @@ export function createCosmicWorld(canvas: HTMLCanvasElement, ctx: CanvasRenderin
     uiAnchors: [],
     lastAnchorUpdate: 0,
     isLogoBlackholeActive: false,
+    isAyaDanceActive: false,
     logoBlackholeTimer: 0,
     logoElements: [],
     logoOrigPositions: [],
     pageExplodeActive: false,
     pageExplodeTimer: 0,
+    pageExplodeStartTime: 0,
     screenFlash: 0,
     blackoutAlpha: 0,
     isSandboxOpen: false,
@@ -148,7 +163,18 @@ export function createCosmicWorld(canvas: HTMLCanvasElement, ctx: CanvasRenderin
     fpsLowStreak: 0,
     fpsHighStreak: 0,
     fpsGovernorCooldown: 0,
-    lastFrameTime: 0
+    lastFrameTime: 0,
+    ayaEasterEggCooldownUntil: 0,
+    ayaFormationCenterX: 0,
+    ayaFormationCenterY: 0,
+    loadingSpinnerAngle: 0,
+    loadingSpinnerCenterX: 0,
+    loadingSpinnerCenterY: 0,
+    loadingSpinnerRadius: 0,
+    loadingStartedAt: 0,
+    pageReadyAt: 0,
+    pageAssetsReady: false,
+    pageLoadCompleteTriggered: false
   };
 }
 

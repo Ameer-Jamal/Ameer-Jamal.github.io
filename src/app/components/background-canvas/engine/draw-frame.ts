@@ -23,6 +23,9 @@ import { spawnStellarBirth, spawnNurseryStar, spawnStardustPuff, spawnMiniSupern
 import { drawMiniChargeArc, spawnEasterEggConstellation, drawEasterEggs } from './effects';
 import { drawGalaxy, updateAndDrawComets, getLensedCoords, updateUIAnchors } from './background-layers';
 import { endLogoBlackhole } from './logo-easter-egg';
+import { beginAyaFormation, drawFormationLinks, endAyaFormation, tickAyaFormation } from './aya-formation';
+import { drawLoadingRingLinks, tickLoadingSpinner, tryCompleteLoading } from './loading-spinner';
+import { applyPageExplodeFrame, collectPageExplodeElements } from './page-explode-targets';
 import { getSandboxChargeProgress, tickSandboxCharge, drawSandboxPowerChargeAuras, applyBlackHolePreviewGravity, tryWormholeCapture, applyWormholeForcesToParticle, applySandboxBlackholeForces, tickTeslaHoldZaps, updateAndDrawSandboxElements } from './sandbox-powers';
 
 export function draw(engine: CosmicCanvasEngine): void {
@@ -47,32 +50,29 @@ export function draw(engine: CosmicCanvasEngine): void {
     // --- PAGE ELEMENTS EXPLOSION ---
     if (engine.world.pageExplodeActive) {
       try {
-        engine.world.pageExplodeTimer++;
-        const progress = Math.min(1.0, engine.world.pageExplodeTimer / 120);
-        
-        const len = engine.world.logoElements ? engine.world.logoElements.length : 0;
+        const elapsed = Date.now() - engine.world.pageExplodeStartTime;
+        const explodeDuration = engine.world.isAyaDanceActive
+          ? COSMIC_CONSTANTS.PAGE_EXPLODE_DURATION_MS * 1.5
+          : COSMIC_CONSTANTS.PAGE_EXPLODE_DURATION_MS;
+        const progress = Math.min(1.0, elapsed / explodeDuration);
+        engine.world.pageExplodeTimer = Math.floor(progress * 120);
+
+        const len = engine.world.logoElements.length;
         for (let i = 0; i < len; i++) {
           const htmlEl = engine.world.logoElements[i];
-          const orig = engine.world.logoOrigPositions ? engine.world.logoOrigPositions[i] : null;
-          if (!htmlEl || !htmlEl.style || !orig) continue;
-          
-          const dirX = -orig.dx;
-          const dirY = -orig.dy;
-          const lenDist = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
-          const ndx = dirX / lenDist;
-          const ndy = dirY / lenDist;
-          
-          const blastDistance = Math.pow(progress, 1.15) * 1100; // translate up to 1100px outward
-          const tx = ndx * blastDistance;
-          const ty = ndy * blastDistance;
-          
-          const rotate = progress * 960 * (i % 2 === 0 ? 1 : -1);
-          const scale = Math.max(0, 1.0 - Math.pow(progress, 1.6));
-          const opacity = Math.max(0, 1.0 - Math.pow(progress, 1.3));
-          
-          htmlEl.style.transition = 'none';
-          htmlEl.style.transform = `translate(${tx}px, ${ty}px) rotate(${rotate}deg) scale(${scale})`;
-          htmlEl.style.opacity = `${opacity}`;
+          const orig = engine.world.logoOrigPositions[i];
+          if (!htmlEl || !orig) continue;
+
+          applyPageExplodeFrame(htmlEl, orig, progress, i);
+        }
+
+        if (progress >= 1.0) {
+          engine.world.pageExplodeActive = false;
+          if (!engine.world.isAyaDanceActive) {
+            endLogoBlackhole(engine);
+          }
+          // Aya: leave logo/text exploded and hidden for the whole formation;
+          // they are reassembled together at the end via endAyaDance.
         }
       } catch (e) {
         console.warn('[LogoBlackhole] Page elements explosion frame error:', e);
@@ -122,12 +122,13 @@ export function draw(engine: CosmicCanvasEngine): void {
     } else if (engine.world.state === 'MOON_DANCE') {
       engine.world.stateTimer--;
       engine.world.logoBlackholeTimer++;
-      
+
       // Gradually fade out background space environment into black
       if (engine.world.stateTimer > 90) {
-        engine.world.blackoutAlpha = Math.min(0.96, ((390 - engine.world.stateTimer) / 300) * 0.96);
+        const blackoutTarget = engine.world.isAyaDanceActive ? 0.98 : 0.96;
+        engine.world.blackoutAlpha = Math.min(blackoutTarget, ((390 - engine.world.stateTimer) / 300) * blackoutTarget);
       } else {
-        engine.world.blackoutAlpha = 0.96;
+        engine.world.blackoutAlpha = engine.world.isAyaDanceActive ? 0.98 : 0.96;
         
         // Phase 2: Rapid logo trembling and pulsing
         if (!engine.world.performanceProfile.skipDomTremble) {
@@ -166,9 +167,71 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
 
       if (engine.world.stateTimer <= 0) {
+        if (engine.world.isAyaDanceActive) {
+          engine.world.screenFlash = 18;
+
+          for (const p of engine.world.particles) {
+            p.birthProgress = 1.0;
+            p.colorBlend = 1.0;
+            p.colorPrefix = 'rgba(255, 100, 180,';
+          }
+
+          blastParticlesAway(engine, engine.world.singularity.x, engine.world.singularity.y, 52.0);
+
+          const pinkShockwaves = [
+            { x: engine.world.singularity.x, y: engine.world.singularity.y, radius: 0, maxRadius: COSMIC_CONSTANTS.EXPLOSION_RADIUS * 3.8, speed: 24.0, alpha: 1.0, color: '255, 220, 240' },
+            { x: engine.world.singularity.x, y: engine.world.singularity.y, radius: 0, maxRadius: COSMIC_CONSTANTS.EXPLOSION_RADIUS * 3.2, speed: 18.0, alpha: 0.95, color: '255, 120, 180' },
+            { x: engine.world.singularity.x, y: engine.world.singularity.y, radius: 0, maxRadius: COSMIC_CONSTANTS.EXPLOSION_RADIUS * 2.6, speed: 14.0, alpha: 0.88, color: '255, 80, 160' },
+            { x: engine.world.singularity.x, y: engine.world.singularity.y, radius: 0, maxRadius: COSMIC_CONSTANTS.EXPLOSION_RADIUS * 2.0, speed: 10.0, alpha: 0.78, color: '255, 160, 200' }
+          ];
+          const shockwaveCount = Math.max(1, Math.floor(pinkShockwaves.length * engine.world.performanceProfile.effectScale));
+          for (let w = 0; w < shockwaveCount; w++) {
+            engine.world.shockwaves.push(pinkShockwaves[w]);
+          }
+
+          const sparkCount = Math.floor(280 * engine.world.performanceProfile.effectScale);
+          for (let k = 0; k < sparkCount; k++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 20.0 + 4.5;
+            engine.world.sparks.push({
+              x: engine.world.singularity.x,
+              y: engine.world.singularity.y,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              radius: Math.random() * 3.2 + 1.2,
+              alpha: 1.0,
+              color: k % 3 === 0 ? 'rgba(255, 150, 200,' : k % 3 === 1 ? 'rgba(255, 100, 180,' : 'rgba(255, 200, 220,'
+            });
+          }
+
+          engine.world.shakeTimer = 90;
+
+          const logoEl = document.querySelector('.logo') as HTMLElement;
+          const logoImg = document.querySelector('.logoImg') as HTMLElement;
+          if (logoEl) {
+            logoEl.classList.remove('logo-aya-transform');
+            logoEl.classList.add('logo-aya-explode');
+          }
+          if (logoImg) {
+            logoImg.classList.remove('logo-aya-transform-img');
+            logoImg.classList.add('logo-aya-explode');
+          }
+
+          collectPageExplodeElements(
+            engine,
+            engine.world.singularity.x,
+            engine.world.singularity.y,
+            { includeLogo: false }
+          );
+          engine.world.pageExplodeActive = true;
+          engine.world.pageExplodeTimer = 0;
+          engine.world.pageExplodeStartTime = Date.now();
+
+          beginAyaFormation(engine);
+        } else {
         transitionTo(engine, 'EXPLODING');
-        engine.world.stateTimer = 240; // 4 seconds total cooldown for the Big Bang sequence
-        engine.world.screenFlash = 14; // trigger full screen flash overlay
+        engine.world.stateTimer = 240;
+        engine.world.screenFlash = 14;
 
         // Reset particle birth progress and blend so they are bright and flash out on explosion
         for (const p of engine.world.particles) {
@@ -247,7 +310,7 @@ export function draw(engine: CosmicCanvasEngine): void {
           });
         }
         
-        engine.world.shakeTimer = 75; // major screen shake duration
+        engine.world.shakeTimer = 75;
         
         // Apply explode class to logo elements
         const logoEl = document.querySelector('.logo') as HTMLElement;
@@ -261,20 +324,32 @@ export function draw(engine: CosmicCanvasEngine): void {
           logoImg.classList.add('logo-moon-explode');
         }
         
+        collectPageExplodeElements(
+          engine,
+          engine.world.singularity.x,
+          engine.world.singularity.y,
+          { includeLogo: false }
+        );
         engine.world.pageExplodeActive = true;
         engine.world.pageExplodeTimer = 0;
-        
-        // Schedule restoration/fading back in
-        setTimeout(() => {
-          endLogoBlackhole(engine);
-          engine.world.pageExplodeActive = false;
-        }, 2200);
+        engine.world.pageExplodeStartTime = Date.now();
+        }
       }
+    } else if (engine.world.state === 'AYA_FORMATION') {
+      engine.world.stateTimer--;
+      tickAyaFormation(engine);
+      if (engine.world.stateTimer <= 0) {
+        endAyaFormation(engine);
+      }
+    } else if (engine.world.state === 'LOADING') {
+      tickLoadingSpinner(engine);
+      tryCompleteLoading(engine);
     } else if (engine.world.state === 'EXPLODING') {
       engine.world.stateTimer--;
       // Slowly fade out the background blackout
       if (engine.world.blackoutAlpha > 0) {
-        engine.world.blackoutAlpha = Math.max(0, engine.world.blackoutAlpha - 0.015);
+        const fadeStep = engine.world.isAyaDanceActive ? 0.006 : 0.015;
+        engine.world.blackoutAlpha = Math.max(0, engine.world.blackoutAlpha - fadeStep);
       }
       if (engine.world.stateTimer <= 0 && engine.world.shockwaves.length === 0) {
         const resumeSwarm = engine.world.mouseMoving && isMouseGravityActive(engine);
@@ -508,10 +583,18 @@ export function draw(engine: CosmicCanvasEngine): void {
         engine.world.singularity.x, engine.world.singularity.y, 10,
         engine.world.singularity.x, engine.world.singularity.y, maxRadius
       );
-      grad.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.9})`);
-      grad.addColorStop(0.25, `rgba(0, 240, 255, ${alpha * 0.6})`);
-      grad.addColorStop(0.55, `rgba(255, 100, 230, ${alpha * 0.28})`);
-      grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+
+      if (engine.world.isAyaDanceActive) {
+        grad.addColorStop(0, `rgba(255, 240, 248, ${alpha * 0.95})`);
+        grad.addColorStop(0.25, `rgba(255, 120, 180, ${alpha * 0.75})`);
+        grad.addColorStop(0.55, `rgba(255, 60, 140, ${alpha * 0.38})`);
+        grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+      } else {
+        grad.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.9})`);
+        grad.addColorStop(0.25, `rgba(0, 240, 255, ${alpha * 0.6})`);
+        grad.addColorStop(0.55, `rgba(255, 100, 230, ${alpha * 0.28})`);
+        grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+      }
 
       engine.world.ctx.fillStyle = grad;
       engine.world.ctx.beginPath();
@@ -534,11 +617,15 @@ export function draw(engine: CosmicCanvasEngine): void {
       for (let j = 1; j < l.segments.length; j++) {
         engine.world.ctx.lineTo(l.segments[j].x, l.segments[j].y);
       }
-      engine.world.ctx.strokeStyle = `rgba(255, 120, 240, ${l.alpha * 0.85})`;
+      engine.world.ctx.strokeStyle = engine.world.isAyaDanceActive
+        ? `rgba(255, 100, 180, ${l.alpha * 0.9})`
+        : `rgba(255, 120, 240, ${l.alpha * 0.85})`;
       engine.world.ctx.lineWidth = 2.2;
       engine.world.ctx.stroke();
 
-      engine.world.ctx.strokeStyle = `rgba(0, 230, 255, ${l.alpha * 0.4})`;
+      engine.world.ctx.strokeStyle = engine.world.isAyaDanceActive
+        ? `rgba(255, 180, 220, ${l.alpha * 0.45})`
+        : `rgba(0, 230, 255, ${l.alpha * 0.4})`;
       engine.world.ctx.lineWidth = 4.5;
       engine.world.ctx.stroke();
     }
@@ -667,7 +754,7 @@ export function draw(engine: CosmicCanvasEngine): void {
     }
 
     // 10. Stellar nursery: Random births if particle count drops (maintain ecosystem)
-    if (engine.world.particles.length < getMaxParticles(engine.world) && Math.random() < 0.045) {
+    if (engine.world.particles.length < getMaxParticles(engine.world) && engine.world.state !== 'AYA_FORMATION' && engine.world.state !== 'LOADING' && Math.random() < 0.045) {
       spawnStellarBirth(engine, Math.random() * width, Math.random() * height);
     }
 
@@ -696,7 +783,9 @@ export function draw(engine: CosmicCanvasEngine): void {
     const intenseMesh = isIntenseParticleMesh(engine);
     const meshConnectionDist = engine.world.state === 'DRIFT'
       ? getScaledConnectionDistance(engine.world) * 0.78
-      : (engine.world.state === 'MOON_DANCE' ? getScaledConnectionDistance(engine.world) * 1.35 : getScaledConnectionDistance(engine.world));
+      : (engine.world.state === 'MOON_DANCE' || engine.world.state === 'AYA_FORMATION' || engine.world.state === 'LOADING'
+        ? getScaledConnectionDistance(engine.world) * 1.35
+        : getScaledConnectionDistance(engine.world));
     const meshLimitSq = meshConnectionDist * meshConnectionDist;
     const flockRange = 180;
     const breedingRange = 18;
@@ -705,11 +794,11 @@ export function draw(engine: CosmicCanvasEngine): void {
       const p = engine.world.particles[i];
 
       // A. Star Life Cycle Logic
-      if (p.birthProgress < 1.0 && engine.world.state !== 'MOON_DANCE') {
+      if (p.birthProgress < 1.0 && engine.world.state !== 'MOON_DANCE' && engine.world.state !== 'AYA_FORMATION' && engine.world.state !== 'LOADING') {
         p.birthProgress += p.isNursery ? 0.08 : 0.025;
       }
 
-      if (engine.world.state !== 'MOON_DANCE') {
+      if (engine.world.state !== 'MOON_DANCE' && engine.world.state !== 'AYA_FORMATION' && engine.world.state !== 'LOADING') {
         if (!p.isDying) {
           p.life -= Math.random() * 0.00007 + 0.00002;
           if (p.life <= 0.12) {
@@ -728,8 +817,11 @@ export function draw(engine: CosmicCanvasEngine): void {
         }
       }
 
+      const inLoadingRing = engine.world.state === 'LOADING' && p.orbitAngle !== undefined;
+      const inFormation = p.formationActive && engine.world.state === 'AYA_FORMATION';
+
       // B. Singularity / Moon Dance pull physics (Vortex Black-Hole or Orbit Dance)
-      if (engine.world.state === 'SINGULARITY') {
+      if (!inFormation && !inLoadingRing && engine.world.state === 'SINGULARITY') {
         const dx = engine.world.singularity.x - p.x;
         const dy = engine.world.singularity.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -749,7 +841,7 @@ export function draw(engine: CosmicCanvasEngine): void {
             p.vy = (p.vy / speed) * maxSpeed;
           }
         }
-      } else if (engine.world.state === 'MOON_DANCE') {
+      } else if (!inFormation && !inLoadingRing && engine.world.state === 'MOON_DANCE') {
         const dx = engine.world.singularity.x - p.x;
         const dy = engine.world.singularity.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -801,7 +893,7 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
 
       // C. Evaluate Charging Pull Physics (Nova Strike only)
-      if (engine.world.state === 'CHARGING' && usesDefaultMouseGravity(engine)) {
+      if (!inFormation && !inLoadingRing && engine.world.state === 'CHARGING' && usesDefaultMouseGravity(engine)) {
         const dx = engine.world.mouse.x - p.x;
         const dy = engine.world.mouse.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -826,6 +918,7 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
 
       // D. Evaluate Expanding Shockwave Physics
+      if (!inFormation && !inLoadingRing) {
       for (const s of engine.world.shockwaves) {
         const dx = p.x - s.x;
         const dy = p.y - s.y;
@@ -844,15 +937,18 @@ export function draw(engine: CosmicCanvasEngine): void {
           tryWormholeCapture(engine, p, { forceCapture: true });
         }
       }
+      }
 
       // D2. Sandbox black hole + wormhole world physics (persistent until CLEAR)
+      if (!inFormation && !inLoadingRing) {
       for (const sbh of engine.world.sandboxBlackholes) {
         applySandboxBlackholeForces(engine, p, sbh);
       }
       applyWormholeForcesToParticle(engine, p);
+      }
 
       // E. Evaluate Swarm Gravity Physics (paused briefly when using a sandbox power)
-      if (engine.world.state === 'SWARM' && isMouseGravityActive(engine)) {
+      if (!inFormation && !inLoadingRing && engine.world.state === 'SWARM' && isMouseGravityActive(engine)) {
         const dx = engine.world.mouse.x - p.x;
         const dy = engine.world.mouse.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -1098,6 +1194,7 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
 
       // G. Decelerate / Spring back to base velocities (spring drag)
+      if (!inFormation && !inLoadingRing) {
       const dragFactor = engine.world.state === 'DRIFT' ? 0.008 : 0.035;
       p.vx += (p.baseVx - p.vx) * dragFactor;
       p.vy += (p.baseVy - p.vy) * dragFactor;
@@ -1116,6 +1213,9 @@ export function draw(engine: CosmicCanvasEngine): void {
 
       // Decay color blend
       p.colorBlend *= 0.94;
+      } else if (inFormation || inLoadingRing) {
+        p.colorBlend = Math.max(p.colorBlend, inLoadingRing ? 0.75 : 0.95);
+      }
 
       // H. Draw Node based on life cycle stage
       let currentRadius = p.radius;
@@ -1360,8 +1460,29 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
     }
 
-    // 12. Render active easter egg constellations (Super Move outlines)
+    // 12. Formation links + easter egg message
+    if (engine.world.state === 'AYA_FORMATION') {
+      drawFormationLinks(engine);
+    }
+    if (engine.world.state === 'LOADING') {
+      drawLoadingRingLinks(engine);
+    }
     drawEasterEggs(engine);
+
+    // Pink dedication vignette during Aya formation
+    if (engine.world.isAyaDanceActive && (engine.world.state === 'AYA_FORMATION' || engine.world.easterEggs.length > 0)) {
+      const vigCx = engine.world.ayaFormationCenterX || width / 2;
+      const vigCy = engine.world.ayaFormationCenterY || height * 0.25;
+      const vigGrad = engine.world.ctx.createRadialGradient(
+        vigCx, vigCy, Math.min(width, height) * 0.08,
+        vigCx, vigCy, Math.max(width, height) * 0.65
+      );
+      vigGrad.addColorStop(0, 'rgba(255, 100, 180, 0)');
+      vigGrad.addColorStop(0.5, 'rgba(255, 80, 160, 0.06)');
+      vigGrad.addColorStop(1, 'rgba(60, 10, 35, 0.28)');
+      engine.world.ctx.fillStyle = vigGrad;
+      engine.world.ctx.fillRect(0, 0, width, height);
+    }
 
     // --- RESTORE SCREEN SHAKE TRANSFORMATION ---
     if (engine.world.shakeTimer > 0) {
@@ -1371,8 +1492,10 @@ export function draw(engine: CosmicCanvasEngine): void {
     // --- SCREEN FLASH OVERLAY (Big Bang flash) ---
     if (engine.world.screenFlash > 0) {
       engine.world.screenFlash--;
-      const flashAlpha = engine.world.screenFlash / 14;
-      engine.world.ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
+      const flashMax = engine.world.isAyaDanceActive ? 18 : 14;
+      const flashAlpha = engine.world.screenFlash / flashMax;
+      const flashRgb = engine.world.isAyaDanceActive ? '255, 180, 220' : '255, 255, 255';
+      engine.world.ctx.fillStyle = `rgba(${flashRgb}, ${flashAlpha})`;
       engine.world.ctx.fillRect(0, 0, width, height);
     }
   }

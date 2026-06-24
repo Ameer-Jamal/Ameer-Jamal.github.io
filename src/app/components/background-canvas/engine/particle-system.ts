@@ -191,8 +191,43 @@ export function initParticles(engine: CosmicCanvasEngine): void {
   }
 
 
+/**
+ * Gently reconcile the live particle count with the current tier's cap WITHOUT wiping the scene.
+ * Excess stars fade out via the normal death animation; deficits are filled with a few births.
+ * Used for FPS-governor tier changes so the field never visibly "resets".
+ */
+export function adjustParticlePopulation(engine: CosmicCanvasEngine): void {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const area = width * height;
+
+    const targetCount = Math.min(getMaxParticles(engine.world), Math.floor(area / COSMIC_CONSTANTS.PARTICLE_DENSITY));
+    const target = Math.max(35, targetCount);
+    const current = engine.world.particles.length;
+
+    if (current > target) {
+      const excess = current - target;
+      let marked = 0;
+      for (let i = current - 1; i >= 0 && marked < excess; i--) {
+        const p = engine.world.particles[i];
+        if (p && !p.isDying && p.orbitAngle === undefined && !p.formationActive) {
+          p.isDying = true;
+          marked++;
+        }
+      }
+    } else if (current < target) {
+      const deficit = Math.min(target - current, 40);
+      for (let i = 0; i < deficit; i++) {
+        spawnStellarBirth(engine, Math.random() * width, Math.random() * height);
+      }
+    }
+  }
+
+
 export function isIntenseParticleMesh(engine: CosmicCanvasEngine): boolean {
     return engine.world.state === 'MOON_DANCE'
+      || engine.world.state === 'AYA_FORMATION'
+      || engine.world.state === 'LOADING'
       || engine.world.sandboxBlackholes.length > 0
       || engine.world.wormholes.length > 0
       || (engine.world.isSandboxOpen && engine.world.activePower !== 'DEFAULT');

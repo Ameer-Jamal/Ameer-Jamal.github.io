@@ -63,6 +63,10 @@ export function transitionTo(engine: CosmicCanvasEngine, newState: GameState): v
       engine.world.stateTimer = 25; // Vortex Implosion timer
     } else if (newState === 'MOON_DANCE') {
       engine.world.stateTimer = 390; // Moon dance build-up (300f / 5s) + hyper-collapse (90f / 1.5s)
+    } else if (newState === 'AYA_FORMATION') {
+      engine.world.stateTimer = 240; // ~4s: form, admire, then hand back control
+    } else if (newState === 'LOADING') {
+      engine.world.stateTimer = 0;
     } else if (newState === 'DRIFT') {
       engine.world.flockEasingFactor = 0.0;
     }

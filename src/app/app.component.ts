@@ -48,6 +48,14 @@ export class AppComponent implements AfterViewInit {
       for (const source of this.scriptSources) {
         await this.loadScript(source);
       }
+
+      if (document.readyState !== 'complete') {
+        await new Promise<void>((resolve) => {
+          window.addEventListener('load', () => resolve(), { once: true });
+        });
+      }
+
+      window.dispatchEvent(new CustomEvent('portfolio-page-ready'));
     } catch (error) {
       console.error('[Portfolio] Script bootstrap failed.', error);
     }

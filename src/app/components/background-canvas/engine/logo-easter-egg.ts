@@ -19,9 +19,13 @@ import type { CosmicCanvasEngine } from './cosmic-canvas-engine';
 import { getMaxNurseryStars, getMaxParticles, getScaledConnectionDistance } from './cosmic-world';
 
 import { transitionTo } from './state-machine';
+import {
+  clearPageExplodeInlineStyles,
+  restorePageExplodeElements
+} from './page-explode-targets';
 
 export function startLogoBlackhole(engine: CosmicCanvasEngine, logoX: number, logoY: number): void {
-    if (engine.world.isLogoBlackholeActive) return;
+    if (engine.world.isLogoBlackholeActive || engine.world.isAyaDanceActive) return;
     
     engine.world.isLogoBlackholeActive = true;
     engine.world.logoBlackholeTimer = 0;
@@ -37,6 +41,8 @@ export function startLogoBlackhole(engine: CosmicCanvasEngine, logoX: number, lo
     engine.world.shakeTimer = 0; // wait to shake on blast
     
     if (typeof document === 'undefined') return;
+
+    document.body.classList.add('is-moon-dance-active');
     
     try {
       const logoEl = document.querySelector('.logo') as HTMLElement;
@@ -50,54 +56,6 @@ export function startLogoBlackhole(engine: CosmicCanvasEngine, logoX: number, lo
         logoImg.classList.add('logo-moon-transform-img');
       }
 
-      // Select all individual layout elements and their container borders/outlines to explode
-      const selectors = [
-        '#header nav',
-        '#header nav ul li',
-        '#header .content',
-        '#header .content h1',
-        '#header .content p',
-        '#header .subIntro p',
-        '#main',
-        '#main article.active',
-        '#main article.active h2',
-        '#main article.active h3',
-        '#main article.active p',
-        '#main article.active a',
-        '#main article.active li',
-        '#main article.active .close',
-        '#main article.active .field',
-        '#main article.active input',
-        '#main article.active textarea',
-        '#main article.active #github-projects > *',
-        'footer',
-        'footer p',
-        'footer ul li'
-      ];
-      
-      const elements: HTMLElement[] = [];
-      const rawElements = Array.from(document.querySelectorAll(selectors.join(','))) as HTMLElement[];
-      
-      rawElements.forEach((htmlEl) => {
-        const rect = htmlEl.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          elements.push(htmlEl);
-        }
-      });
-      
-      engine.world.logoElements = elements;
-      engine.world.logoOrigPositions = [];
-      
-      engine.world.logoElements.forEach(htmlEl => {
-        const rect = htmlEl.getBoundingClientRect();
-        const elX = rect.left + rect.width / 2;
-        const elY = rect.top + rect.height / 2;
-        
-        engine.world.logoOrigPositions.push({
-          dx: logoX - elX,
-          dy: logoY - elY
-        });
-      });
     } catch (e) {
       console.warn('[LogoMoonDance] Failed initialization:', e);
     }
@@ -133,15 +91,8 @@ export function endLogoBlackhole(engine: CosmicCanvasEngine): void {
         logoImg.style.opacity = '1';
       }
 
-      // Restore structural containers with a gravitational snapping animation
-      if (engine.world.logoElements) {
-        engine.world.logoElements.forEach(htmlEl => {
-          if (htmlEl && htmlEl.style) {
-            htmlEl.style.transition = 'transform 2.2s cubic-bezier(0.25, 1.5, 0.45, 1), opacity 0.5s ease-out';
-            htmlEl.style.transform = 'translate(0, 0) scale(1) rotate(0deg)';
-            htmlEl.style.opacity = '1';
-          }
-        });
+      if (engine.world.logoElements.length > 0) {
+        restorePageExplodeElements(engine.world.logoElements, 2400);
       }
     } catch (e) {
       console.warn('[LogoBlackhole] Failed restore:', e);
@@ -163,21 +114,16 @@ export function endLogoBlackhole(engine: CosmicCanvasEngine): void {
           logoImg.style.opacity = '';
         }
         
-        if (engine.world.logoElements) {
-          engine.world.logoElements.forEach(htmlEl => {
-            if (htmlEl && htmlEl.style) {
-              htmlEl.style.transition = '';
-              htmlEl.style.transform = '';
-              htmlEl.style.opacity = '';
-            }
-          });
-        }
+        clearPageExplodeInlineStyles(engine.world.logoElements);
       } catch (e) {
         console.warn('[LogoBlackhole] Failed cleanup:', e);
       }
       engine.world.isLogoBlackholeActive = false;
       engine.world.logoElements = [];
       engine.world.logoOrigPositions = [];
-    }, 1900);
+      if (typeof document !== 'undefined') {
+        document.body.classList.remove('is-moon-dance-active');
+      }
+    }, 3000);
   }
 

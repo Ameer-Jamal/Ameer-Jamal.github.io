@@ -6,6 +6,7 @@ import {
   upgradeTier
 } from '../../../utils/performance-profile';
 import { CONSTELLATION_TEMPLATES } from '../models/constellation-templates';
+import { ILOVEYOU_CONSTELLATION } from '../models/aya-constellation';
 import { COSMIC_CONSTANTS } from '../models/cosmic.constants';
 import {
   BackgroundGalaxy,
@@ -51,15 +52,42 @@ export function spawnEasterEggConstellation(engine: CosmicCanvasEngine, x: numbe
   }
 
 
+const ILOVEYOU_HOLD_FADE = 0.00165;
+
+export function spawnILoveYouMessage(
+  engine: CosmicCanvasEngine,
+  x: number,
+  y: number,
+  scale: number
+): void {
+  engine.world.easterEggs.push({
+    x,
+    y,
+    scale,
+    alpha: 1,
+    points: ILOVEYOU_CONSTELLATION.points,
+    connections: ILOVEYOU_CONSTELLATION.connections,
+    fadeRate: ILOVEYOU_HOLD_FADE,
+    palette: 'pink'
+  });
+}
+
+
 export function drawEasterEggs(engine: CosmicCanvasEngine): void {
     for (let i = engine.world.easterEggs.length - 1; i >= 0; i--) {
       const egg = engine.world.easterEggs[i];
-      egg.alpha -= 0.0035; // Fades out slowly over ~280 frames (~4.5 seconds)
+      const fadeRate = egg.fadeRate ?? 0.0035;
+      egg.alpha -= fadeRate;
 
       if (egg.alpha <= 0) {
         engine.world.easterEggs.splice(i, 1);
         continue;
       }
+
+      const isPink = egg.palette === 'pink';
+      const isWarm = egg.palette === 'warm' || isPink;
+      const lineColor = isPink ? '255, 120, 180' : isWarm ? '255, 160, 120' : '0, 240, 255';
+      const haloColor = isPink ? '255, 80, 160' : isWarm ? '255, 120, 160' : '255, 100, 230';
 
       // Draw connections
       engine.world.ctx.beginPath();
@@ -74,25 +102,27 @@ export function drawEasterEggs(engine: CosmicCanvasEngine): void {
         engine.world.ctx.lineTo(pt2.x, pt2.y);
       }
       
-      // Paint faint glowing neon cyan/magenta linkage lines
-      engine.world.ctx.strokeStyle = `rgba(0, 240, 255, ${egg.alpha * 0.28})`;
-      engine.world.ctx.lineWidth = 0.9;
+      engine.world.ctx.strokeStyle = `rgba(${lineColor}, ${egg.alpha * (isPink ? 0.72 : isWarm ? 0.55 : 0.28)})`;
+      engine.world.ctx.lineWidth = isPink ? 1.8 : isWarm ? 1.4 : 0.9;
       engine.world.ctx.stroke();
 
       // Draw constellation nodes
       for (const p of egg.points) {
         const pt = getLensedCoords(engine, egg.x + p.x * egg.scale, egg.y + p.y * egg.scale);
 
+        const coreRadius = isPink ? 2.8 : isWarm ? 2.6 : 1.8;
+        const haloRadius = isPink ? 8 : isWarm ? 7.5 : 4.5;
+
         // Core star
         engine.world.ctx.beginPath();
-        engine.world.ctx.arc(pt.x, pt.y, 1.8, 0, Math.PI * 2);
-        engine.world.ctx.fillStyle = `rgba(255, 255, 255, ${egg.alpha * 0.9})`;
+        engine.world.ctx.arc(pt.x, pt.y, coreRadius, 0, Math.PI * 2);
+        engine.world.ctx.fillStyle = `rgba(255, 255, 255, ${egg.alpha * 0.95})`;
         engine.world.ctx.fill();
 
         // Outer glow halo
         engine.world.ctx.beginPath();
-        engine.world.ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
-        engine.world.ctx.fillStyle = `rgba(255, 100, 230, ${egg.alpha * 0.35})`;
+        engine.world.ctx.arc(pt.x, pt.y, haloRadius, 0, Math.PI * 2);
+        engine.world.ctx.fillStyle = `rgba(${haloColor}, ${egg.alpha * (isWarm ? 0.5 : 0.35)})`;
         engine.world.ctx.fill();
       }
     }

@@ -118,6 +118,11 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.engine?.onLogoBlackholeTrigger();
   }
 
+  @HostListener('window:keydown', ['$event'])
+  onKeyDown(event: KeyboardEvent): void {
+    this.engine?.onAyaKeyDown(event);
+  }
+
   /** @deprecated Use onPointerMove — kept for unit tests */
   onMouseMove(event: MouseEvent): void {
     this.onPointerMove(event as PointerEvent);

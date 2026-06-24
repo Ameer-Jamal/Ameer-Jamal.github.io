@@ -1,4 +1,4 @@
-export type GameState = 'DRIFT' | 'SWARM' | 'CHARGING' | 'SINGULARITY' | 'EXPLODING' | 'MOON_DANCE';
+export type GameState = 'LOADING' | 'DRIFT' | 'SWARM' | 'CHARGING' | 'SINGULARITY' | 'EXPLODING' | 'MOON_DANCE' | 'AYA_FORMATION';
 
 export type MousePower =
   | 'DEFAULT'
@@ -52,6 +52,10 @@ export interface Particle {
   behaviorTimer: number;
   speedFactor: number;
   isNursery?: boolean;
+  formationTx?: number;
+  formationTy?: number;
+  formationActive?: boolean;
+  orbitAngle?: number;
 }
 
 export interface TwinkleStar {
@@ -161,6 +165,8 @@ export interface CosmicEasterEgg {
   alpha: number;
   points: { x: number; y: number }[];
   connections: [number, number][];
+  fadeRate?: number;
+  palette?: 'default' | 'warm' | 'pink';
 }
 
 export interface ConstellationTemplate {

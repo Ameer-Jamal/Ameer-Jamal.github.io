@@ -97,7 +97,7 @@ export function onPointerCancel(engine: CosmicCanvasEngine, event: PointerEvent)
   }
 
 export function onPointerDown(engine: CosmicCanvasEngine, event: PointerEvent): void {
-    if (engine.world.state === 'SINGULARITY' || engine.world.state === 'MOON_DANCE') {
+    if (engine.world.state === 'SINGULARITY' || engine.world.state === 'MOON_DANCE' || engine.world.state === 'AYA_FORMATION' || engine.world.state === 'LOADING' || engine.world.isAyaDanceActive) {
       return;
     }
 
@@ -140,7 +140,7 @@ export function onPointerUp(engine: CosmicCanvasEngine, event: PointerEvent): vo
     }
     engine.world.isMouseDown = false;
 
-    if (engine.world.state === 'SINGULARITY' || engine.world.state === 'MOON_DANCE') {
+    if (engine.world.state === 'SINGULARITY' || engine.world.state === 'MOON_DANCE' || engine.world.state === 'AYA_FORMATION' || engine.world.state === 'LOADING' || engine.world.isAyaDanceActive) {
       clearTouchPointerStateIfNeeded(engine, event);
       return;
     }
@@ -199,7 +199,7 @@ export function onMouseUp(engine: CosmicCanvasEngine, event: MouseEvent): void {
   }
 
 export function onLogoBlackholeTrigger(engine: CosmicCanvasEngine): void {
-    if (engine.world.state === 'SINGULARITY' || engine.world.isLogoBlackholeActive) return;
+    if (engine.world.state === 'SINGULARITY' || engine.world.state === 'MOON_DANCE' || engine.world.state === 'AYA_FORMATION' || engine.world.state === 'LOADING' || engine.world.isLogoBlackholeActive || engine.world.isAyaDanceActive) return;
     
     // Find logo coordinates relative to canvas layout
     const logoImg = document.querySelector('.logoImg') || document.querySelector('.logo');

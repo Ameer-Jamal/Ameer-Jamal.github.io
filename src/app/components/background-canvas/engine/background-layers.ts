@@ -284,7 +284,13 @@ export function updateAndDrawComets(engine: CosmicCanvasEngine, width: number, h
 
 
 export function getLensedCoords(engine: CosmicCanvasEngine, x: number, y: number): { x: number; y: number } {
-    if (!engine.world.mouse.active || engine.world.mouse.x === -1000 || engine.world.state === 'SINGULARITY') {
+    if (
+      engine.world.isAyaDanceActive ||
+      engine.world.state === 'AYA_FORMATION' ||
+      !engine.world.mouse.active ||
+      engine.world.mouse.x === -1000 ||
+      engine.world.state === 'SINGULARITY'
+    ) {
       return { x, y };
     }
 

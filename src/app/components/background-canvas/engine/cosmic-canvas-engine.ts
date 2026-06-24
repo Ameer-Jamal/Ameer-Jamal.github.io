@@ -26,7 +26,9 @@ import {
   onPointerMove,
   onPointerUp
 } from './input-controller';
+import { onAyaKeyDown } from './aya-easter-egg';
 import { CosmicWorld, createCosmicWorld } from './cosmic-world';
+import { beginLoadingSequence, setupLoadingRing, shouldSkipLoadingSequence } from './loading-spinner';
 
 export { TOOLS_LIST };
 
@@ -44,6 +46,9 @@ export class CosmicCanvasEngine {
     applyPerformanceTier(this, this.world.performanceProfile.tier, false);
     initNebulas(this);
     initParticles(this);
+    if (!shouldSkipLoadingSequence()) {
+      beginLoadingSequence(this);
+    }
     this.animate();
   }
 
@@ -69,6 +74,9 @@ export class CosmicCanvasEngine {
     initStars(this);
     initGalaxies(this);
     initParticles(this);
+    if (this.world.state === 'LOADING') {
+      setupLoadingRing(this);
+    }
   }
 
   private animate(): void {
@@ -97,4 +105,5 @@ export class CosmicCanvasEngine {
   public onMouseDown(event: MouseEvent): void { onMouseDown(this, event); }
   public onMouseUp(event: MouseEvent): void { onMouseUp(this, event); }
   public onLogoBlackholeTrigger(): void { onLogoBlackholeTrigger(this); }
+  public onAyaKeyDown(event: KeyboardEvent): void { onAyaKeyDown(this, event); }
 }

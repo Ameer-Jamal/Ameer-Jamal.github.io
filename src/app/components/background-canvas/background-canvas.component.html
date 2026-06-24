@@ -1,0 +1,58 @@
+<div class="sandbox-container">
+  <div class="sandbox-trigger-wrapper">
+    <span *ngIf="!isSandboxOpen" class="sandbox-trigger-hint">? ➔</span>
+    <button class="sandbox-trigger" (click)="toggleSandboxBar()" aria-label="Toggle Sandbox Mode">
+      <div class="pulsar-icon">
+        <span class="pulsar-icon__core"></span>
+        <span class="pulsar-icon__ring"></span>
+      </div>
+    </button>
+  </div>
+
+  <div class="sandbox-panel" [class.sandbox-panel--open]="isSandboxOpen">
+    <button
+      class="sandbox-panel__close"
+      type="button"
+      (click)="toggleSandboxBar()"
+      aria-label="Close sandbox panel">
+      <span class="sandbox-panel__close-icon" aria-hidden="true"></span>
+    </button>
+    <div class="sandbox-panel__header">
+      <div class="sandbox-panel__header-row">
+        <span class="sandbox-panel__title">SANDBOX UNIVERSE CREATOR</span>
+        <button
+          class="sandbox-pin"
+          type="button"
+          [class.sandbox-pin--active]="isSandboxPinned"
+          (click)="toggleSandboxPin()"
+          [attr.aria-pressed]="isSandboxPinned"
+          [attr.aria-label]="isSandboxPinned ? 'Unpin sandbox panel' : 'Pin sandbox panel'">
+          <i class="fas fa-thumbtack sandbox-pin__icon" aria-hidden="true"></i>
+        </button>
+      </div>
+      <span class="sandbox-panel__subtitle">Place objects, switch tools, combine powers — CLEAR resets the world</span>
+      <span *ngIf="activePower === 'PAINT_BRUSH'" class="sandbox-panel__nursery-count">{{ nurseryStarsLabel }} nursery stars</span>
+    </div>
+    <div class="sandbox-panel__body">
+      <div class="sandbox-panel__tools">
+        <button
+          *ngFor="let tool of toolsList"
+          class="sandbox-tool"
+          [class.sandbox-tool--active]="activePower === tool.id"
+          (click)="selectPower(tool.id)">
+          <span class="sandbox-tool__icon">{{ tool.icon }}</span>
+          <div class="sandbox-tool__info">
+            <span class="sandbox-tool__name">{{ tool.name }}</span>
+            <span class="sandbox-tool__desc">{{ tool.desc }}</span>
+          </div>
+        </button>
+      </div>
+      <div class="sandbox-panel__actions">
+        <span class="sandbox-panel__hint">💡 Psst... try clicking the logo!</span>
+        <button class="sandbox-action-btn" (click)="clearSandboxElements()">CLEAR SIMULATION</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas #canvasRef id="bg-canvas"></canvas>
+</div>

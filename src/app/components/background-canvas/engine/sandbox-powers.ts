@@ -744,7 +744,7 @@ export function spawnSandboxPlanet(engine: CosmicCanvasEngine, x: number, y: num
 export function shatterPlanet(engine: CosmicCanvasEngine, pl: SandboxPlanet): void {
   if (pl.isDying) return;
   pl.isDying = true;
-  pl.deathTimer = 25;
+  pl.deathTimer = 12; // quickly collapse parent representation
 
   let theme;
   try {
@@ -753,20 +753,53 @@ export function shatterPlanet(engine: CosmicCanvasEngine, pl: SandboxPlanet): vo
     theme = { sparkColor: 'rgba(0, 255, 140,' };
   }
 
-  const numStars = Math.floor(Math.random() * 5) + 8;
-  for (let i = 0; i < numStars; i++) {
-    const angle = (Math.PI * 2 * i) / numStars + (Math.random() - 0.5) * 0.25;
-    const speed = Math.random() * 3.5 + 2.5;
+  const minRadiusForSplit = 18;
+  if (pl.radius > minRadiusForSplit) {
+    // Shatter into 2 or 3 smaller planet pieces!
+    const numFragments = pl.radius > 36 ? 3 : 2;
+    const fragmentRadius = pl.radius * 0.44;
+    const fragmentMass = fragmentRadius * fragmentRadius * 0.6;
     
-    const sx = pl.x + Math.cos(angle) * (pl.radius * 0.4);
-    const sy = pl.y + Math.sin(angle) * (pl.radius * 0.4);
+    const baseAngle = Math.random() * Math.PI * 2;
+    for (let i = 0; i < numFragments; i++) {
+      const angle = baseAngle + (Math.PI * 2 * i) / numFragments + (Math.random() - 0.5) * 0.15;
+      const speed = Math.random() * 2.2 + 2.0; // initial velocity
+      
+      const fx = pl.x + Math.cos(angle) * (pl.radius * 0.35);
+      const fy = pl.y + Math.sin(angle) * (pl.radius * 0.35);
+
+      engine.world.sandboxPlanets.push({
+        x: fx,
+        y: fy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: fragmentRadius,
+        mass: fragmentMass,
+        color: pl.color, // inherit parent color theme!
+        isDying: false,
+        deathTimer: 0
+      });
+    }
     
-    const spawned = spawnStellarBirth(engine, sx, sy, { nursery: true, sprayAngle: angle });
-    if (spawned) {
-      const p = engine.world.particles[engine.world.particles.length - 1];
-      if (p) {
-        p.vx = Math.cos(angle) * speed;
-        p.vy = Math.sin(angle) * speed;
+    // Also spawn some spark puffs
+    spawnStardustPuff(engine, pl.x, pl.y, theme.sparkColor || 'rgba(0, 255, 140,');
+  } else {
+    // Too small to split further, breaks down into regular nursery stars (dust and particles)
+    const numStars = Math.floor(Math.random() * 3) + 4; // 4 to 6 stars
+    for (let i = 0; i < numStars; i++) {
+      const angle = (Math.PI * 2 * i) / numStars + (Math.random() - 0.5) * 0.3;
+      const speed = Math.random() * 2.5 + 1.8;
+      
+      const sx = pl.x + Math.cos(angle) * (pl.radius * 0.4);
+      const sy = pl.y + Math.sin(angle) * (pl.radius * 0.4);
+      
+      const spawned = spawnStellarBirth(engine, sx, sy, { nursery: true, sprayAngle: angle });
+      if (spawned) {
+        const p = engine.world.particles[engine.world.particles.length - 1];
+        if (p) {
+          p.vx = Math.cos(angle) * speed;
+          p.vy = Math.sin(angle) * speed;
+        }
       }
     }
   }
@@ -1126,6 +1159,32 @@ export function updateAndDrawSandboxElements(engine: CosmicCanvasEngine, width: 
         pl.deathTimer--;
         pl.radius -= pl.radius / 10;
         if (pl.radius < 0.5) pl.radius = 0;
+      } else {
+        // Update velocity & position for planetary pieces
+        if (pl.vx !== undefined && pl.vy !== undefined) {
+          pl.x += pl.vx;
+          pl.y += pl.vy;
+          pl.vx *= 0.96; // soft space drag
+          pl.vy *= 0.96;
+          
+          // Bounce off canvas boundaries
+          const bounceFactor = 0.65;
+          if (pl.x - pl.radius < 0) {
+            pl.x = pl.radius;
+            pl.vx = -pl.vx * bounceFactor;
+          } else if (pl.x + pl.radius > width) {
+            pl.x = width - pl.radius;
+            pl.vx = -pl.vx * bounceFactor;
+          }
+          
+          if (pl.y - pl.radius < 0) {
+            pl.y = pl.radius;
+            pl.vy = -pl.vy * bounceFactor;
+          } else if (pl.y + pl.radius > height) {
+            pl.y = height - pl.radius;
+            pl.vy = -pl.vy * bounceFactor;
+          }
+        }
       }
 
       const radius = pl.radius;

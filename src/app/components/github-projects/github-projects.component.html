@@ -1,5 +1,5 @@
-<div *ngIf="isLoading" class="github-projects__loader" aria-live="polite" aria-label="Loading GitHub projects">
-  <div class="github-projects__spinner"></div>
+<div *ngIf="isLoading" class="github-projects__loader" aria-live="polite">
+  <div class="github-projects__spinner" role="status" aria-label="Loading GitHub projects"></div>
 </div>
 
 <p *ngIf="!isLoading && hasError" class="github-projects__status github-projects__status--error">
@@ -10,12 +10,19 @@
   No public projects are available at the moment.
 </div>
 
-<div *ngIf="!isLoading && !hasError && projects.length > 0" class="github-projects__grid">
-  <article class="github-projects__card" *ngFor="let project of projects">
-    <div>
+<ng-template #projectCard let-project>
+  <article
+    class="github-projects__card github-projects__card--enter-active"
+    [class.github-projects__card--enter-next]="slideDirection === 'next'"
+    [class.github-projects__card--enter-prev]="slideDirection === 'prev'">
+    <header class="github-projects__card-header">
       <h4 class="github-projects__card-title">{{ project.name }}</h4>
-      <p class="github-projects__card-description">{{ project.description || 'No description provided.' }}</p>
-    </div>
+      <div class="github-projects__badges">
+        <span class="github-projects__badge">{{ project.language }}</span>
+      </div>
+    </header>
+
+    <p class="github-projects__card-description">{{ project.description || 'No description provided.' }}</p>
 
     <ul class="github-projects__stats">
       <li>
@@ -44,4 +51,51 @@
       <a class="github-projects__card-link" [href]="project.url" target="_blank" rel="noopener noreferrer">View Repository</a>
     </div>
   </article>
+</ng-template>
+
+<div *ngIf="!isLoading && !hasError && currentProject as project" class="github-projects__responsive-shell">
+  <section class="github-projects__carousel" aria-roledescription="carousel" aria-label="Featured GitHub projects">
+    <button
+      class="github-projects__nav github-projects__nav--previous"
+      type="button"
+      aria-label="Previous project"
+      [disabled]="projects.length <= 1"
+      (click)="goToPrevious()">‹</button>
+
+    <div class="github-projects__carousel-card">
+      <ng-container *ngTemplateOutlet="projectCard; context: { $implicit: project }"></ng-container>
+    </div>
+
+    <button
+      class="github-projects__nav github-projects__nav--next"
+      type="button"
+      aria-label="Next project"
+      [disabled]="projects.length <= 1"
+      (click)="goToNext()">›</button>
+
+    <p class="github-projects__position">{{ positionLabel }}</p>
+  </section>
+
+  <section class="github-projects__mobile-carousel" aria-roledescription="carousel" aria-label="Featured GitHub projects">
+    <div class="github-projects__carousel-card">
+      <ng-container *ngTemplateOutlet="projectCard; context: { $implicit: project }"></ng-container>
+    </div>
+
+    <div class="github-projects__mobile-card-nav">
+      <button
+        class="github-projects__nav github-projects__nav--previous"
+        type="button"
+        aria-label="Previous project"
+        [disabled]="projects.length <= 1"
+        (click)="goToPrevious()">‹</button>
+      <button
+        class="github-projects__nav github-projects__nav--next"
+        type="button"
+        aria-label="Next project"
+        [disabled]="projects.length <= 1"
+        (click)="goToNext()">›</button>
+    </div>
+
+    <p class="github-projects__position">{{ positionLabel }}</p>
+  </section>
 </div>

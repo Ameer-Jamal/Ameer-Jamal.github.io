@@ -61,3 +61,76 @@ export function buildHighlightList(apiRepos) {
   list.sort((a, b) => (b.stars ?? 0) - (a.stars ?? 0));
   return list;
 }
+
+/**
+ * Resolve where a repo's README lives (or confirm it has none) so the browser can
+ * skip probing repos with no README and avoid noisy 404 requests at runtime.
+ * Mirrors the client's lookup order: raw README.md first, then the REST /readme
+ * endpoint (which also resolves non-standard filenames like README.rst).
+ *
+ * @param {string} owner
+ * @param {{ name: string, defaultBranch?: string | null }} repo
+ * @param {typeof fetch} fetchImpl
+ * @param {string} token
+ * @returns {Promise<{ readmeRawUrl: string | null, readmeHtmlUrl: string | null }>}
+ */
+export async function probeReadme(owner, repo, fetchImpl = fetch, token = '') {
+  const branch = repo.defaultBranch || 'main';
+  const encodedRepo = encodeURIComponent(repo.name);
+  const encodedBranch = encodeURIComponent(branch).replaceAll('%2F', '/');
+  const rawUrl = `https://raw.githubusercontent.com/${owner}/${encodedRepo}/${encodedBranch}/README.md`;
+
+  try {
+    const res = await fetchImpl(rawUrl, { method: 'HEAD' });
+    if (res?.ok) {
+      return {
+        readmeRawUrl: rawUrl,
+        readmeHtmlUrl: `https://github.com/${owner}/${encodedRepo}/blob/${encodedBranch}/README.md`,
+      };
+    }
+  } catch {
+    // fall through to the REST lookup
+  }
+
+  try {
+    const headers = {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const res = await fetchImpl(`https://api.github.com/repos/${owner}/${encodedRepo}/readme`, { headers });
+    if (res?.ok) {
+      const data = await res.json();
+      return {
+        readmeRawUrl: data?.download_url || null,
+        readmeHtmlUrl: data?.html_url || null,
+      };
+    }
+  } catch {
+    // no README resolvable
+  }
+
+  return { readmeRawUrl: null, readmeHtmlUrl: null };
+}
+
+/**
+ * Annotate each highlight entry with precomputed README URLs (null when absent).
+ *
+ * @param {object[]} list
+ * @param {string} owner
+ * @param {typeof fetch} fetchImpl
+ * @param {string} token
+ */
+export async function enrichHighlightsWithReadme(list, owner, fetchImpl = fetch, token = '') {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const enriched = [];
+  for (const repo of list) {
+    const meta = await probeReadme(owner, repo, fetchImpl, token);
+    enriched.push({ ...repo, readmeRawUrl: meta.readmeRawUrl, readmeHtmlUrl: meta.readmeHtmlUrl });
+  }
+  return enriched;
+}

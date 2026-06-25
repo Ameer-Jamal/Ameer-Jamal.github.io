@@ -239,7 +239,9 @@
     "forks": 0,
     "openIssues": 0,
     "updatedAt": "2023-07-19T19:25:12Z",
-    "defaultBranch": "main"
+    "defaultBranch": "main",
+    "readmeRawUrl": null,
+    "readmeHtmlUrl": null
   },
   {
     "name": "algorithm-implementations",
@@ -250,6 +252,8 @@
     "forks": 0,
     "openIssues": 0,
     "updatedAt": "2023-02-14T10:52:41Z",
-    "defaultBranch": "main"
+    "defaultBranch": "main",
+    "readmeRawUrl": null,
+    "readmeHtmlUrl": null
   }
 ]

@@ -39,6 +39,8 @@ export interface SandboxChronoWell {
 export interface SandboxPlanet {
   x: number;
   y: number;
+  vx?: number;
+  vy?: number;
   radius: number;
   mass: number;
   color: string;

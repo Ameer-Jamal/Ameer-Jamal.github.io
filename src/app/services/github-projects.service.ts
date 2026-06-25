@@ -29,23 +29,53 @@ interface GitHubRepoResponse {
   fork?: boolean;
 }
 
+interface CachedRepoResponse {
+  name?: string;
+  description?: string;
+  language?: string;
+  url?: string;
+  stars?: number;
+  forks?: number;
+  openIssues?: number;
+  updatedAt?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GitHubProjectsService {
   private readonly username = 'Ameer-Jamal';
+  private readonly cachedProjectsUrl = 'assets/data/github-highlight-repos.json';
   private readonly pinnedApi = `https://gh-pinned-repos.egoist.dev/?username=${this.username}`;
   private readonly reposApi = `https://api.github.com/users/${this.username}/repos?per_page=100&sort=updated`;
 
   constructor(private readonly http: HttpClient) {}
 
   getProjects(limit = 8): Observable<GitHubProject[]> {
+    return this.getCachedProjects().pipe(
+      switchMap((cachedProjects) => {
+        if (cachedProjects.length > 0) {
+          return of(cachedProjects);
+        }
+        return this.getLiveProjects();
+      }),
+      map((projects) => this.sortAndFilter(projects).slice(0, limit))
+    );
+  }
+
+  private getCachedProjects(): Observable<GitHubProject[]> {
+    return this.http.get<CachedRepoResponse[]>(this.cachedProjectsUrl).pipe(
+      map((repos) => (Array.isArray(repos) ? repos.map((repo) => this.normalizeCachedRepo(repo)) : [])),
+      catchError(() => of([]))
+    );
+  }
+
+  private getLiveProjects(): Observable<GitHubProject[]> {
     return this.getPinnedProjects().pipe(
       switchMap((pinnedProjects) => {
         if (pinnedProjects.length > 0) {
           return of(pinnedProjects);
         }
         return this.getGitHubProjects();
-      }),
-      map((projects) => this.sortAndFilter(projects).slice(0, limit))
+      })
     );
   }
 
@@ -82,6 +112,19 @@ export class GitHubProjectsService {
       forks: typeof repo.forks === 'number' ? repo.forks : 0,
       openIssues: typeof repo.open_issues === 'number' ? repo.open_issues : 0,
       updatedAt: repo.updated_at ?? null
+    };
+  }
+
+  private normalizeCachedRepo(repo: CachedRepoResponse): GitHubProject {
+    return {
+      name: repo.name ?? 'Untitled Project',
+      description: repo.description ?? '',
+      language: repo.language ?? 'Not specified',
+      url: repo.url ?? '#',
+      stars: typeof repo.stars === 'number' ? repo.stars : 0,
+      forks: typeof repo.forks === 'number' ? repo.forks : 0,
+      openIssues: typeof repo.openIssues === 'number' ? repo.openIssues : 0,
+      updatedAt: repo.updatedAt ?? null
     };
   }
 

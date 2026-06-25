@@ -2,8 +2,9 @@
 <div class="cv-mobile-actions">
   <a class="button primary" href="https://drive.google.com/file/d/1Dcp2m2-4s_p2sHZBjeadJB4t7lOPe2jm/view?usp=sharing"
     target="_blank" rel="noopener noreferrer">Open CV</a>
+  <button class="button" type="button" *ngIf="!isPreviewVisible" (click)="showPreview()">Preview CV</button>
 </div>
-<div class="cv-embed">
+<div class="cv-embed" *ngIf="isPreviewVisible">
   <iframe title="Ameer Jamal résumé"
     src="https://docs.google.com/viewer?url=https://drive.google.com/uc?id=1Dcp2m2-4s_p2sHZBjeadJB4t7lOPe2jm&embedded=true"
     loading="lazy" allow="fullscreen"

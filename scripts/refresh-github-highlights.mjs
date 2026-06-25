@@ -8,7 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { buildHighlightList } from './github-highlight-lib.mjs';
+import { buildHighlightList, enrichHighlightsWithReadme } from './github-highlight-lib.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -75,7 +75,8 @@ async function main() {
   const owner = resolveOwner();
   const raw = await fetchAllUserRepos(owner, token);
   const highlights = buildHighlightList(raw);
-  const json = `${JSON.stringify(highlights, null, 2)}\n`;
+  const withReadme = await enrichHighlightsWithReadme(highlights, owner, fetch, token);
+  const json = `${JSON.stringify(withReadme, null, 2)}\n`;
 
   writeFileSync(OUT_FILE, json, 'utf8');
   console.log(`Wrote ${highlights.length} repos to ${OUT_FILE}`);

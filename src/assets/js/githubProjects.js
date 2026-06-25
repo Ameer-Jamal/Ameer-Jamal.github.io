@@ -142,7 +142,8 @@
             const filtered = this.filterExcluded(repositories);
             const sorted = this.sortRepositories(filtered);
             const limited = this.applyRepoLimit(sorted);
-            const enriched = await this.enrichRepositories(limited);
+            const annotated = await this.annotateWithReadmeMetadata(limited);
+            const enriched = await this.enrichRepositories(annotated);
             logger.info('[GitHubProjects] Rendering GitHub API repositories.', {
                 username: this.username,
                 total: enriched.length
@@ -270,6 +271,74 @@
             return [];
         }
 
+        /**
+         * Loads precomputed README availability from the shipped highlight JSON so we can
+         * skip probing repositories that have no README (avoids noisy 404 requests).
+         * Best-effort: any failure resolves to an empty map and normal probing resumes.
+         */
+        async loadReadmeMetadata() {
+            if (this._readmeMetadataPromise) {
+                return this._readmeMetadataPromise;
+            }
+
+            this._readmeMetadataPromise = (async () => {
+                const map = new Map();
+                const relativePath = 'assets/data/github-highlight-repos.json';
+                let resolvedUrl = relativePath;
+                try {
+                    if (typeof global.location !== 'undefined' && global.location && global.location.href) {
+                        resolvedUrl = new URL(relativePath, global.location.href).toString();
+                    }
+                } catch (_error) {
+                    resolvedUrl = relativePath;
+                }
+
+                try {
+                    const response = await this.fetcher(resolvedUrl);
+                    if (!response || !response.ok) {
+                        return map;
+                    }
+                    const data = await response.json();
+                    if (!Array.isArray(data)) {
+                        return map;
+                    }
+                    for (const item of data) {
+                        if (!item || typeof item.name !== 'string') {
+                            continue;
+                        }
+                        // Only entries that carry a readmeRawUrl key have actually been checked.
+                        if (Object.prototype.hasOwnProperty.call(item, 'readmeRawUrl')) {
+                            map.set(item.name.trim().toLowerCase(), {
+                                readmeChecked: true,
+                                readmeRawUrl: item.readmeRawUrl || null,
+                                readmeHtmlUrl: item.readmeHtmlUrl || null
+                            });
+                        }
+                    }
+                } catch (_error) {
+                    // Metadata is best-effort; fall back to live probing.
+                }
+                return map;
+            })();
+
+            return this._readmeMetadataPromise;
+        }
+
+        async annotateWithReadmeMetadata(repositories = []) {
+            if (!repositories.length) {
+                return repositories;
+            }
+            const metadata = await this.loadReadmeMetadata();
+            if (!metadata || metadata.size === 0) {
+                return repositories;
+            }
+            return repositories.map((repo) => {
+                const key = repo && repo.name ? String(repo.name).trim().toLowerCase() : '';
+                const meta = key ? metadata.get(key) : null;
+                return meta ? Object.assign({}, repo, { readmeMeta: meta }) : repo;
+            });
+        }
+
         sortRepositories(repositories = []) {
             return [...repositories].sort((a, b) => {
                 const starDelta = (b.stars || 0) - (a.stars || 0);
@@ -338,6 +407,12 @@
          */
         async fetchReadme(repo) {
             if (!repo || !repo.name) {
+                return null;
+            }
+
+            // Precomputed metadata says this repo has no README anywhere: skip the
+            // probe entirely so we don't fire a request that is guaranteed to 404.
+            if (repo.readmeMeta && repo.readmeMeta.readmeChecked && !repo.readmeMeta.readmeRawUrl) {
                 return null;
             }
 

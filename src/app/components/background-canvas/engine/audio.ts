@@ -6,9 +6,36 @@ import { MousePower, SandboxChargeTier } from '../models/cosmic.types';
  */
 
 let audioCtx: AudioContext | null = null;
+let hasUserGesture = false;
+let gestureListenersAttached = false;
+
+/**
+ * Browsers refuse to start an AudioContext until the user interacts with the page.
+ * We listen once for the first real gesture, resume the context then, and avoid
+ * calling resume() before that point (which otherwise spams a console warning).
+ */
+function attachGestureListeners(): void {
+  if (gestureListenersAttached || typeof window === 'undefined') return;
+  gestureListenersAttached = true;
+
+  const onFirstGesture = (): void => {
+    hasUserGesture = true;
+    if (audioCtx?.state === 'suspended') {
+      void audioCtx.resume();
+    }
+    window.removeEventListener('pointerdown', onFirstGesture);
+    window.removeEventListener('keydown', onFirstGesture);
+    window.removeEventListener('touchstart', onFirstGesture);
+  };
+
+  window.addEventListener('pointerdown', onFirstGesture);
+  window.addEventListener('keydown', onFirstGesture);
+  window.addEventListener('touchstart', onFirstGesture);
+}
 
 export function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
+  attachGestureListeners();
   if (!audioCtx) {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (AudioContextClass) {
@@ -16,8 +43,9 @@ export function getAudioContext(): AudioContext | null {
       (window as any).__ayaAudioCtx = audioCtx;
     }
   }
-  if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume();
+  // Only resume after a user gesture; resuming earlier triggers a browser warning.
+  if (hasUserGesture && audioCtx?.state === 'suspended') {
+    void audioCtx.resume();
   }
   return audioCtx;
 }

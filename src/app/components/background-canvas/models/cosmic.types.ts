@@ -8,7 +8,8 @@ export type MousePower =
   | 'TESLA_DISCHARGE'
   | 'WORMHOLE'
   | 'NEBULAR_WIND'
-  | 'TIME_DILATION';
+  | 'TIME_DILATION'
+  | 'PLANET';
 
 export type SandboxChargeTier = 'tap' | 'charged' | 'super';
 
@@ -21,6 +22,28 @@ export interface SandboxBlackhole {
   maxTimer: number;
   pullRadius: number;
   gravityStrength: number;
+  isDying?: boolean;
+}
+
+export interface SandboxChronoWell {
+  x: number;
+  y: number;
+  radius: number;
+  maxRadius: number;
+  timer: number;
+  maxTimer: number;
+  slowFactor: number;
+  isDying?: boolean;
+}
+
+export interface SandboxPlanet {
+  x: number;
+  y: number;
+  radius: number;
+  mass: number;
+  color: string;
+  isDying?: boolean;
+  deathTimer?: number;
 }
 
 export interface Wormhole {
@@ -56,6 +79,7 @@ export interface Particle {
   formationTy?: number;
   formationActive?: boolean;
   orbitAngle?: number;
+  isHeart?: boolean;
 }
 
 export interface TwinkleStar {

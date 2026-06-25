@@ -1,6 +1,7 @@
 import { getAyaLetterScale, getWorldLetterTargets } from '../models/aya-constellation';
 import type { CosmicCanvasEngine } from './cosmic-canvas-engine';
 import { endAyaDance } from './aya-easter-egg';
+import { playSupernovaPop, stopBlackholeHum } from './audio';
 import { spawnILoveYouMessage } from './effects';
 import { transitionTo } from './state-machine';
 
@@ -15,6 +16,7 @@ const FORMATION_DAMP = 0.8;
 const FORMATION_LINK_DIST = 20;
 
 export function beginAyaFormation(engine: CosmicCanvasEngine): void {
+  stopBlackholeHum();
   const world = engine.world;
   const scale = getAyaLetterScale(world.canvasWidth, world.canvasHeight);
   const targets = getWorldLetterTargets(world.ayaFormationCenterX, world.ayaFormationCenterY, scale);
@@ -40,9 +42,11 @@ export function beginAyaFormation(engine: CosmicCanvasEngine): void {
   const messageY = world.ayaFormationCenterY + scale * 0.58;
   spawnILoveYouMessage(engine, world.ayaFormationCenterX, messageY, scale * 0.72);
 
+  // Play supernova blast sound
+  playSupernovaPop();
+
   transitionTo(engine, 'AYA_FORMATION');
-  // Short cinematic hold so the constellation forms, is briefly admired, then
-  // hands control back quickly (the love message carries the long tribute).
+  // Initially hold AYA_FORMATION for 4 seconds during constellation build-up and page explosion
   world.stateTimer = 240;
   world.screenFlash = 16;
 }
@@ -65,6 +69,13 @@ export function tickAyaFormation(engine: CosmicCanvasEngine): void {
     p.vy += dy * FORMATION_SPRING;
     p.vx *= FORMATION_DAMP;
     p.vy *= FORMATION_DAMP;
+
+    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1;
+    const maxSpeed = 8.0;
+    if (speed > maxSpeed) {
+      p.vx = (p.vx / speed) * maxSpeed;
+      p.vy = (p.vy / speed) * maxSpeed;
+    }
 
     if (Math.abs(dx) < 2 && Math.abs(dy) < 2) {
       p.x += dx * 0.35;
@@ -102,6 +113,37 @@ export function drawFormationLinks(engine: CosmicCanvasEngine): void {
 }
 
 export function endAyaFormation(engine: CosmicCanvasEngine): void {
+  if ((engine.world as any).isHeartSwarmActive) {
+    (engine.world as any).isHeartSwarmActive = false;
+    
+    // Dissolve the heart swarm back to DRIFT state instead of restoring "AYA"
+    for (const p of engine.world.particles) {
+      p.formationActive = false;
+      p.formationTx = undefined;
+      p.formationTy = undefined;
+      p.colorBlend = 0.4;
+      p.colorPrefix = 'rgba(255, 255, 255,';
+      p.vx *= 0.4;
+      p.vy *= 0.4;
+      p.radius = p.baseRadius;
+    }
+
+    engine.world.blackoutAlpha = 0;
+    transitionTo(engine, 'DRIFT');
+    return;
+  }
+
+  // If the 4-second initial admire/constellation formation timer finishes:
+  if (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message')) {
+    // Restore the page UI so the user can interact with the menu
+    endAyaDance(engine);
+
+    // Keep the constellation target coordinates active and state locked in AYA_FORMATION
+    transitionTo(engine, 'AYA_FORMATION');
+    engine.world.stateTimer = 999999;
+    return;
+  }
+
   for (const p of engine.world.particles) {
     p.formationActive = false;
     p.formationTx = undefined;

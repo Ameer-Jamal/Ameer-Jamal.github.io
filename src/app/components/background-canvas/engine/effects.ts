@@ -77,7 +77,12 @@ export function drawEasterEggs(engine: CosmicCanvasEngine): void {
     for (let i = engine.world.easterEggs.length - 1; i >= 0; i--) {
       const egg = engine.world.easterEggs[i];
       const fadeRate = egg.fadeRate ?? 0.0035;
-      egg.alpha -= fadeRate;
+
+      const isAyaMessage = typeof document !== 'undefined' && document.body.classList.contains('is-aya-message');
+      const isILoveYouConstellation = egg.palette === 'pink';
+      if (!(isILoveYouConstellation && isAyaMessage)) {
+        egg.alpha -= fadeRate;
+      }
 
       if (egg.alpha <= 0) {
         engine.world.easterEggs.splice(i, 1);

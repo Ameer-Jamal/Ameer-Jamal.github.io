@@ -13,16 +13,29 @@ import {
   MousePower,
   Particle,
   SandboxBlackhole,
-  SandboxChargeTier
+  SandboxChargeTier,
+  SandboxChronoWell,
+  SandboxPlanet
 } from '../models/cosmic.types';
 import type { CosmicCanvasEngine } from './cosmic-canvas-engine';
 import { getMaxNurseryStars, getMaxParticles, getScaledConnectionDistance } from './cosmic-world';
 
 import { isSandboxPowerEngaged, blastParticlesAway, isSandboxPowerChannelActive } from './state-machine';
-import { spawnNurseryStar, spawnStardustPuff, spawnMiniSupernova, findNearestParticleIndices } from './particle-system';
+import { spawnNurseryStar, spawnStardustPuff, spawnMiniSupernova, findNearestParticleIndices, spawnStellarBirth } from './particle-system';
+import {
+  playSelectPowerSound,
+  playToggleSandboxSound,
+  playClearSound,
+  playWormholeTeleportSound,
+  playBlackHoleConsumeSound,
+  playPowerReleaseSound,
+  playSupernovaPop,
+  updatePowerChargeAudio
+} from './audio';
 
 export function toggleSandboxBar(engine: CosmicCanvasEngine): void {
     engine.world.isSandboxOpen = !engine.world.isSandboxOpen;
+    playToggleSandboxSound(engine.world.isSandboxOpen);
   }
 
 
@@ -33,11 +46,16 @@ export function toggleSandboxPin(engine: CosmicCanvasEngine): void {
 
 export function selectPower(engine: CosmicCanvasEngine, power: MousePower): void {
     engine.world.activePower = power;
+    playSelectPowerSound(power);
   }
   
 
 export function clearSandboxElements(engine: CosmicCanvasEngine): void {
+    playClearSound();
     engine.world.sandboxBlackholes = [];
+    engine.world.sandboxChronoWells = [];
+    engine.world.sandboxPlanets = [];
+    engine.world.draggedPlanet = null;
     engine.world.wormholes = [];
     engine.world.wormholeHypergateTimer = 0;
     engine.world.inversionNovaTimer = 0;
@@ -158,12 +176,17 @@ export function drawSandboxPowerChargeAuras(engine: CosmicCanvasEngine): void {
           'rgba(140, 120, 255, ALPHA)'
         );
         break;
+      case 'PLANET':
+        drawPlanetPreview(engine);
+        break;
     }
   }
 
 
 export function handleSandboxPowerRelease(engine: CosmicCanvasEngine): void {
     const tier = getSandboxChargeTier(engine);
+    playPowerReleaseSound(engine.world.activePower, tier);
+    updatePowerChargeAudio(engine.world.activePower, false, 0);
 
     switch (engine.world.activePower) {
       case 'BLACK_HOLE':
@@ -176,7 +199,7 @@ export function handleSandboxPowerRelease(engine: CosmicCanvasEngine): void {
         releaseRepellerPower(engine, tier);
         break;
       case 'TIME_DILATION':
-        releaseTimeDilationPower(engine, tier);
+        spawnSandboxChronoWell(engine, engine.world.mouse.x, engine.world.mouse.y, tier);
         break;
       case 'NEBULAR_WIND':
         releaseNebularWindPower(engine, tier);
@@ -187,11 +210,19 @@ export function handleSandboxPowerRelease(engine: CosmicCanvasEngine): void {
       case 'WORMHOLE':
         releaseWormholePower(engine, tier);
         break;
+      case 'PLANET':
+        spawnSandboxPlanet(engine, engine.world.mouse.x, engine.world.mouse.y);
+        break;
     }
   }
 
 
 export function spawnSandboxBlackhole(engine: CosmicCanvasEngine, x: number, y: number, tier: SandboxChargeTier): void {
+    const activeBHs = engine.world.sandboxBlackholes.filter(bh => !bh.isDying);
+    if (activeBHs.length >= 3) {
+      activeBHs[0].isDying = true;
+    }
+
     if (tier === 'tap') {
       engine.world.sandboxBlackholes.push({
         x,
@@ -349,54 +380,64 @@ export function releaseRepellerPower(engine: CosmicCanvasEngine, tier: SandboxCh
   }
 
 
-export function releaseTimeDilationPower(engine: CosmicCanvasEngine, tier: SandboxChargeTier): void {
-    const radius = tier === 'tap' ? 180 : tier === 'charged' ? 280 : 360;
-    const slowFactor = tier === 'tap' ? 0.78 : tier === 'charged' ? 0.42 : 0.12;
-
-    for (const p of engine.world.particles) {
-      if (p.isDying || p.birthProgress < 1.0) {
-        continue;
-      }
-
-      const dx = p.x - engine.world.mouse.x;
-      const dy = p.y - engine.world.mouse.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-
-      if (dist < radius) {
-        const depth = 1 - dist / radius;
-        const damp = slowFactor - depth * (tier === 'super' ? 0.04 : 0.12);
-        p.vx *= damp;
-        p.vy *= damp;
-
-        if (tier !== 'tap') {
-          p.vx += (-dy / dist) * depth * (0.25 + (tier === 'super' ? 0.35 : 0.15));
-          p.vy += (dx / dist) * depth * (0.25 + (tier === 'super' ? 0.35 : 0.15));
-        }
-
-        p.colorBlend = Math.max(p.colorBlend, 0.55 + depth * (tier === 'super' ? 0.45 : 0.3));
-      }
+export function spawnSandboxChronoWell(engine: CosmicCanvasEngine, x: number, y: number, tier: SandboxChargeTier): void {
+    const activeWells = engine.world.sandboxChronoWells.filter(w => !w.isDying);
+    if (activeWells.length >= 3) {
+      activeWells[0].isDying = true;
     }
 
+    const maxRadius = tier === 'tap'
+      ? Math.random() * 8 + 68
+      : tier === 'charged'
+      ? Math.random() * 7 + 105
+      : Math.random() * 15 + 140;
+
+    const slowFactor = tier === 'tap' ? 0.65 : tier === 'charged' ? 0.35 : 0.15;
+    
+    engine.world.sandboxChronoWells.push({
+      x,
+      y,
+      radius: 0,
+      maxRadius,
+      timer: 0,
+      maxTimer: 900,
+      slowFactor
+    });
+
     if (tier === 'super') {
+      engine.world.shakeTimer = 12;
       engine.world.shockwaves.push({
-        x: engine.world.mouse.x,
-        y: engine.world.mouse.y,
+        x,
+        y,
         radius: 0,
-        maxRadius: 260,
-        speed: 3.5,
-        alpha: 0.45,
-        color: '0, 220, 255'
+        maxRadius: maxRadius * 1.5,
+        speed: 4,
+        alpha: 0.6,
+        color: '0, 240, 255'
       });
-    } else if (tier === 'charged') {
-      engine.world.shockwaves.push({
-        x: engine.world.mouse.x,
-        y: engine.world.mouse.y,
-        radius: 0,
-        maxRadius: 190,
-        speed: 2.8,
-        alpha: 0.28,
-        color: '0, 210, 255'
-      });
+    }
+  }
+
+export function applySandboxChronoWellForces(engine: CosmicCanvasEngine, p: Particle, cw: SandboxChronoWell): void {
+    if (p.isDying || p.birthProgress < 1.0) {
+      return;
+    }
+
+    const dx = cw.x - p.x;
+    const dy = cw.y - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const scaleRatio = cw.maxRadius > 0 ? (cw.radius / cw.maxRadius) : 1;
+    const currentRadius = cw.maxRadius * scaleRatio;
+
+    if (dist < currentRadius) {
+      const depth = 1 - dist / currentRadius;
+      const wellSlow = cw.slowFactor + (1 - cw.slowFactor) * (1 - depth * scaleRatio);
+      p.vx *= wellSlow;
+      p.vy *= wellSlow;
+
+      const pullStrength = depth * 0.15 * scaleRatio;
+      p.vx += (dx / dist) * pullStrength;
+      p.vy += (dy / dist) * pullStrength;
     }
   }
 
@@ -437,19 +478,13 @@ export function releaseNebularWindPower(engine: CosmicCanvasEngine, tier: Sandbo
 
 
 export function releasePaintBrushPower(engine: CosmicCanvasEngine, tier: SandboxChargeTier): void {
-    const remaining = getMaxNurseryStars(engine.world) - engine.world.nurseryStarCount;
-    if (remaining <= 0) {
-      spawnStardustPuff(engine, engine.world.mouse.x, engine.world.mouse.y, 'rgba(255, 220, 180,');
-      return;
-    }
-
     if (tier === 'tap') {
       spawnNurseryStar(engine, engine.world.mouse.x, engine.world.mouse.y);
       return;
     }
 
     if (tier === 'charged') {
-      const burst = Math.min(4, remaining);
+      const burst = 4;
       for (let i = 0; i < burst; i++) {
         const angle = (Math.PI * 2 * i) / burst;
         spawnNurseryStar(engine, 
@@ -460,7 +495,7 @@ export function releasePaintBrushPower(engine: CosmicCanvasEngine, tier: Sandbox
       return;
     }
 
-    const burst = Math.min(10, remaining);
+    const burst = 10;
     for (let i = 0; i < burst; i++) {
       const angle = i * 0.85;
       const dist = 18 + i * 7;
@@ -515,6 +550,7 @@ export function tryWormholeCapture(engine: CosmicCanvasEngine, p: Particle, opts
 
     spawnStardustPuff(engine, entry.x, entry.y, 'rgba(0, 240, 255,');
     spawnStardustPuff(engine, exit.x, exit.y, 'rgba(255, 100, 230,');
+    playWormholeTeleportSound();
     return true;
   }
 
@@ -526,16 +562,25 @@ export function applyWormholeForcesToParticle(engine: CosmicCanvasEngine, p: Par
 
     const entry = engine.world.wormholes[0];
     const hypergateActive = engine.world.wormholeHypergateTimer > 0;
-    const entryReach = entry.radius * (hypergateActive ? 2.2 : 1) + 10;
-    const pullStrength = hypergateActive ? 1.35 : 0.65;
-
+    
+    // Noticeable gravity pull reach and strength
+    const entryReach = 240 * (hypergateActive ? 1.8 : 1);
     const dx = entry.x - p.x;
     const dy = entry.y - p.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
     if (dist < entryReach) {
-      p.vx += (dx / dist) * pullStrength;
-      p.vy += (dy / dist) * pullStrength;
+      const force = (entryReach - dist) / entryReach;
+      const pull = (hypergateActive ? 2.8 : 1.4) * force;
+      
+      // Pull towards the center of the blue wormhole
+      p.vx += (dx / dist) * pull;
+      p.vy += (dy / dist) * pull;
+      
+      // Spiraling orbit swirl into the portal
+      p.vx += (-dy / dist) * pull * 0.35;
+      p.vy += (dx / dist) * pull * 0.35;
+
       tryWormholeCapture(engine, p);
     }
   }
@@ -550,8 +595,9 @@ export function applySandboxBlackholeForces(engine: CosmicCanvasEngine, p: Parti
     const dx = sbh.x - p.x;
     const dy = sbh.y - p.y;
     const distSq = dx * dx + dy * dy;
-    const pullDist = sbh.pullRadius;
-    const gravity = sbh.gravityStrength;
+    const scaleRatio = sbh.maxRadius > 0 ? (sbh.radius / sbh.maxRadius) : 1;
+    const pullDist = sbh.pullRadius * scaleRatio;
+    const gravity = sbh.gravityStrength * scaleRatio;
 
     if (distSq >= pullDist * pullDist) {
       return;
@@ -588,12 +634,194 @@ export function applySandboxBlackholeForces(engine: CosmicCanvasEngine, p: Parti
         p.deathProgress = 1.0;
         if (p.isNursery) {
           engine.world.nurseryStarCount = Math.max(0, engine.world.nurseryStarCount - 1);
+          p.isNursery = false;
         }
         spawnMiniSupernova(engine, sbh.x, sbh.y, p.colorPrefix);
+        playBlackHoleConsumeSound();
       }
     }
   }
 
+
+export function drawPlanetPreview(engine: CosmicCanvasEngine): void {
+  if (!engine.world.isMouseDown || engine.world.mouse.x === -1000) {
+    return;
+  }
+  const previewRadius = Math.min(80, 12 + engine.world.chargeTime * 0.8);
+  const ctx = engine.world.ctx;
+  const x = engine.world.mouse.x;
+  const y = engine.world.mouse.y;
+
+  // Draw atmosphere glow
+  ctx.beginPath();
+  ctx.arc(x, y, previewRadius + 12, 0, Math.PI * 2);
+  const glowGrad = ctx.createRadialGradient(x, y, previewRadius - 4, x, y, previewRadius + 12);
+  glowGrad.addColorStop(0, 'rgba(0, 255, 140, 0.4)');
+  glowGrad.addColorStop(1, 'rgba(0, 255, 140, 0)');
+  ctx.fillStyle = glowGrad;
+  ctx.fill();
+
+  // Draw dashed outline
+  ctx.beginPath();
+  ctx.arc(x, y, previewRadius, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(0, 255, 180, 0.65)';
+  ctx.lineWidth = 1.8;
+  ctx.setLineDash([5, 8]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw translucent body preview
+  ctx.beginPath();
+  ctx.arc(x, y, previewRadius, 0, Math.PI * 2);
+  const planetGrad = ctx.createRadialGradient(x - previewRadius * 0.3, y - previewRadius * 0.3, previewRadius * 0.1, x, y, previewRadius);
+  planetGrad.addColorStop(0, 'rgba(100, 255, 180, 0.55)');
+  planetGrad.addColorStop(0.7, 'rgba(20, 160, 120, 0.4)');
+  planetGrad.addColorStop(1.0, 'rgba(10, 50, 40, 0.7)');
+  ctx.fillStyle = planetGrad;
+  ctx.fill();
+}
+
+export function spawnSandboxPlanet(engine: CosmicCanvasEngine, x: number, y: number): void {
+  const activePlanets = engine.world.sandboxPlanets.filter(p => !p.isDying);
+  if (activePlanets.length >= 4) {
+    activePlanets[0].isDying = true;
+    activePlanets[0].deathTimer = 30;
+  }
+
+  const radius = Math.min(80, 12 + engine.world.chargeTime * 0.8);
+  const mass = radius * radius * 0.6;
+
+  const themes = [
+    {
+      name: 'emerald',
+      inner: 'rgba(100, 255, 180, 1)',
+      mid: 'rgba(20, 180, 120, 1)',
+      outer: 'rgba(5, 50, 35, 1)',
+      glow: 'rgba(0, 255, 140, 0.45)',
+      sparkColor: 'rgba(50, 255, 180,'
+    },
+    {
+      name: 'sapphire',
+      inner: 'rgba(120, 200, 255, 1)',
+      mid: 'rgba(30, 100, 240, 1)',
+      outer: 'rgba(5, 20, 70, 1)',
+      glow: 'rgba(0, 150, 255, 0.45)',
+      sparkColor: 'rgba(100, 180, 255,'
+    },
+    {
+      name: 'ruby',
+      inner: 'rgba(255, 160, 120, 1)',
+      mid: 'rgba(230, 60, 40, 1)',
+      outer: 'rgba(60, 10, 10, 1)',
+      glow: 'rgba(255, 80, 40, 0.45)',
+      sparkColor: 'rgba(255, 140, 80,'
+    },
+    {
+      name: 'amethyst',
+      inner: 'rgba(230, 160, 255, 1)',
+      mid: 'rgba(160, 50, 230, 1)',
+      outer: 'rgba(40, 10, 70, 1)',
+      glow: 'rgba(200, 80, 255, 0.45)',
+      sparkColor: 'rgba(200, 120, 255,'
+    }
+  ];
+
+  const theme = themes[Math.floor(Math.random() * themes.length)];
+
+  engine.world.sandboxPlanets.push({
+    x,
+    y,
+    radius,
+    mass,
+    color: JSON.stringify(theme),
+    isDying: false,
+    deathTimer: 0
+  });
+
+  playSupernovaPop();
+}
+
+export function shatterPlanet(engine: CosmicCanvasEngine, pl: SandboxPlanet): void {
+  if (pl.isDying) return;
+  pl.isDying = true;
+  pl.deathTimer = 25;
+
+  let theme;
+  try {
+    theme = JSON.parse(pl.color);
+  } catch (e) {
+    theme = { sparkColor: 'rgba(0, 255, 140,' };
+  }
+
+  const numStars = Math.floor(Math.random() * 5) + 8;
+  for (let i = 0; i < numStars; i++) {
+    const angle = (Math.PI * 2 * i) / numStars + (Math.random() - 0.5) * 0.25;
+    const speed = Math.random() * 3.5 + 2.5;
+    
+    const sx = pl.x + Math.cos(angle) * (pl.radius * 0.4);
+    const sy = pl.y + Math.sin(angle) * (pl.radius * 0.4);
+    
+    const spawned = spawnStellarBirth(engine, sx, sy, { nursery: true, sprayAngle: angle });
+    if (spawned) {
+      const p = engine.world.particles[engine.world.particles.length - 1];
+      if (p) {
+        p.vx = Math.cos(angle) * speed;
+        p.vy = Math.sin(angle) * speed;
+      }
+    }
+  }
+
+  spawnMiniSupernova(engine, pl.x, pl.y, theme.sparkColor || 'rgba(0, 255, 140,');
+  playSupernovaPop();
+}
+
+export function applySandboxPlanetForces(engine: CosmicCanvasEngine, p: Particle, pl: SandboxPlanet): void {
+  if (pl.isDying || pl.radius <= 0) {
+    return;
+  }
+
+  const dx = pl.x - p.x;
+  const dy = pl.y - p.y;
+  const distSq = dx * dx + dy * dy;
+  const dist = Math.sqrt(distSq) || 1;
+
+  if (dist < pl.radius) {
+    const overlap = pl.radius - dist;
+    p.x -= (dx / dist) * overlap;
+    p.y -= (dy / dist) * overlap;
+
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const dot = p.vx * nx + p.vy * ny;
+    p.vx = (p.vx - 2 * dot * nx) * 0.65;
+    p.vy = (p.vy - 2 * dot * ny) * 0.65;
+    
+    p.vx += (-ny) * 0.2;
+    p.vy += (nx) * 0.2;
+    return;
+  }
+
+  const gravityRange = pl.radius + 250;
+  if (dist < gravityRange) {
+    const orbitDistance = pl.radius + 45;
+    const forceFactor = (gravityRange - dist) / gravityRange;
+    
+    let pull = 0;
+    if (dist > orbitDistance) {
+      pull = (pl.mass * 0.3) / (distSq + 200);
+    } else {
+      const repelStrength = ((orbitDistance - dist) / (orbitDistance - pl.radius)) * 1.5;
+      pull = -repelStrength;
+    }
+    
+    p.vx += (dx / dist) * pull * forceFactor;
+    p.vy += (dy / dist) * pull * forceFactor;
+
+    const spinSpeed = Math.sqrt(pl.mass * 0.25) * (1 / (dist + 30)) * 2.2 * forceFactor;
+    p.vx += (-dy / dist) * spinSpeed;
+    p.vy += (dx / dist) * spinSpeed;
+  }
+}
 
 export function placeWormholePortal(engine: CosmicCanvasEngine): void {
     if (engine.world.wormholes.length < 2) {
@@ -676,6 +904,31 @@ export function triggerTeslaDischargePower(engine: CosmicCanvasEngine, intensity
       }
     }
 
+    // Zap and shatter planets in range during Tesla Discharge!
+    for (const pl of engine.world.sandboxPlanets) {
+      if (pl.isDying) continue;
+      const dx = pl.x - engine.world.mouse.x;
+      const dy = pl.y - engine.world.mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < config.radius) {
+        const segments = [];
+        const steps = 6;
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps;
+          const baseOffset = 18 * (1 - t);
+          const ox = (s === 0 || s === steps) ? 0 : (Math.random() - 0.5) * baseOffset;
+          const oy = (s === 0 || s === steps) ? 0 : (Math.random() - 0.5) * baseOffset;
+          segments.push({
+            x: engine.world.mouse.x + (pl.x - engine.world.mouse.x) * t + ox,
+            y: engine.world.mouse.y + (pl.y - engine.world.mouse.y) * t + oy
+          });
+        }
+        engine.world.lightnings.push({ segments, alpha: 1.0 });
+        
+        shatterPlanet(engine, pl);
+      }
+    }
+
     if (config.chain && struck.length > 1) {
       for (let i = 0; i < struck.length - 1 && i < 14; i++) {
         const a = struck[i];
@@ -707,6 +960,25 @@ export function tickTeslaHoldZaps(engine: CosmicCanvasEngine): void {
     engine.world.teslaHoldZapTimer++;
     if (engine.world.teslaHoldZapTimer % 8 !== 0) {
       return;
+    }
+
+    // Also zap and shatter planets occasionally if mouse is held near them
+    for (const pl of engine.world.sandboxPlanets) {
+      if (pl.isDying) continue;
+      const dx = pl.x - engine.world.mouse.x;
+      const dy = pl.y - engine.world.mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 420 && Math.random() < 0.22) {
+        engine.world.lightnings.push({
+          segments: [
+            { x: engine.world.mouse.x, y: engine.world.mouse.y },
+            { x: engine.world.mouse.x + (pl.x - engine.world.mouse.x) * 0.5 + (Math.random() - 0.5) * 12, y: engine.world.mouse.y + (pl.y - engine.world.mouse.y) * 0.5 + (Math.random() - 0.5) * 12 },
+            { x: pl.x, y: pl.y }
+          ],
+          alpha: 0.85
+        });
+        shatterPlanet(engine, pl);
+      }
     }
 
     const charge = getSandboxChargeProgress(engine);
@@ -741,13 +1013,25 @@ export function tickTeslaHoldZaps(engine: CosmicCanvasEngine): void {
 export function updateAndDrawSandboxElements(engine: CosmicCanvasEngine, width: number, height: number): void {
     const hypergateActive = engine.world.wormholeHypergateTimer > 0;
 
-    // 1. Sandbox Black holes — persistent until CLEAR (spawn-in animation only)
+    // Clean up completely collapsed black holes
+    engine.world.sandboxBlackholes = engine.world.sandboxBlackholes.filter(
+      sbh => !sbh.isDying || sbh.radius > 0
+    );
+
+    // 1. Sandbox Black holes — persistent until CLEAR or replaced
     for (const sbh of engine.world.sandboxBlackholes) {
-      sbh.timer++;
-      if (sbh.timer < 60) {
-        sbh.radius = sbh.maxRadius * (sbh.timer / 60);
+      if (sbh.isDying) {
+        sbh.radius -= sbh.maxRadius / 30; // Collapse to 0 over 30 frames (0.5s)
+        if (sbh.radius < 0) {
+          sbh.radius = 0;
+        }
       } else {
-        sbh.radius = sbh.maxRadius;
+        sbh.timer++;
+        if (sbh.timer < 60) {
+          sbh.radius = sbh.maxRadius * (sbh.timer / 60);
+        } else {
+          sbh.radius = sbh.maxRadius;
+        }
       }
 
       const sbhRadius = sbh.radius;
@@ -779,6 +1063,135 @@ export function updateAndDrawSandboxElements(engine: CosmicCanvasEngine, width: 
       engine.world.ctx.stroke();
     }
     
+    // 1.5. Sandbox Chrono Wells
+    engine.world.sandboxChronoWells = engine.world.sandboxChronoWells.filter(
+      cw => !cw.isDying || cw.radius > 0
+    );
+
+    for (const cw of engine.world.sandboxChronoWells) {
+      if (cw.isDying) {
+        cw.radius -= cw.maxRadius / 30; // Collapse to 0 over 30 frames (0.5s)
+        if (cw.radius < 0) {
+          cw.radius = 0;
+        }
+      } else {
+        cw.timer++;
+        if (cw.timer < 60) {
+          cw.radius = cw.maxRadius * (cw.timer / 60);
+        } else {
+          cw.radius = cw.maxRadius;
+        }
+      }
+
+      const pulse = Math.sin(Date.now() / 80 + cw.x) * cw.radius * 0.08;
+      const radius = cw.radius + pulse;
+      
+      // Draw glowing chrono bubble fill
+      engine.world.ctx.beginPath();
+      engine.world.ctx.arc(cw.x, cw.y, radius, 0, Math.PI * 2);
+      const radGrad = engine.world.ctx.createRadialGradient(cw.x, cw.y, 8, cw.x, cw.y, radius);
+      radGrad.addColorStop(0, 'rgba(0, 240, 255, 0.04)');
+      radGrad.addColorStop(0.8, 'rgba(0, 240, 255, 0.08)');
+      radGrad.addColorStop(1.0, `rgba(0, 240, 255, ${0.2 * (cw.radius / cw.maxRadius)})`);
+      engine.world.ctx.fillStyle = radGrad;
+      engine.world.ctx.fill();
+      
+      // Draw rotating dashed clock ring
+      engine.world.ctx.beginPath();
+      engine.world.ctx.arc(cw.x, cw.y, radius, Date.now() / 1500 + cw.x, Date.now() / 1500 + cw.x + Math.PI * 2);
+      engine.world.ctx.strokeStyle = `rgba(0, 240, 255, ${0.45 * (cw.radius / cw.maxRadius)})`;
+      engine.world.ctx.lineWidth = 1.5;
+      engine.world.ctx.setLineDash([6, 10]);
+      engine.world.ctx.stroke();
+      engine.world.ctx.setLineDash([]);
+
+      // Draw sweeping clock hand
+      const sweepAngle = ((Date.now() / 1000) + cw.x) % (Math.PI * 2);
+      engine.world.ctx.beginPath();
+      engine.world.ctx.moveTo(cw.x, cw.y);
+      engine.world.ctx.lineTo(cw.x + Math.cos(sweepAngle) * radius, cw.y + Math.sin(sweepAngle) * radius);
+      engine.world.ctx.strokeStyle = `rgba(0, 240, 255, ${0.22 * (cw.radius / cw.maxRadius)})`;
+      engine.world.ctx.lineWidth = 1.5;
+      engine.world.ctx.stroke();
+    }
+    
+    // 1.7. Sandbox Planets
+    engine.world.sandboxPlanets = engine.world.sandboxPlanets.filter(
+      pl => !pl.isDying || (pl.deathTimer !== undefined && pl.deathTimer > 0)
+    );
+
+    for (const pl of engine.world.sandboxPlanets) {
+      if (pl.isDying) {
+        if (pl.deathTimer === undefined) pl.deathTimer = 30;
+        pl.deathTimer--;
+        pl.radius -= pl.radius / 10;
+        if (pl.radius < 0.5) pl.radius = 0;
+      }
+
+      const radius = pl.radius;
+      if (radius <= 0) continue;
+
+      let theme;
+      try {
+        theme = JSON.parse(pl.color);
+      } catch (e) {
+        theme = {
+          name: 'emerald',
+          inner: 'rgba(100, 255, 180, 1)',
+          mid: 'rgba(20, 180, 120, 1)',
+          outer: 'rgba(5, 50, 35, 1)',
+          glow: 'rgba(0, 255, 140, 0.45)',
+          sparkColor: 'rgba(50, 255, 180,'
+        };
+      }
+
+      // Draw planet atmosphere glow (with safe non-negative radii to prevent Canvas DOM Exceptions)
+      const rGlow0 = Math.max(0.1, radius - 4);
+      const rGlow1 = Math.max(0.1, radius + 12);
+      engine.world.ctx.beginPath();
+      engine.world.ctx.arc(pl.x, pl.y, rGlow1, 0, Math.PI * 2);
+      const glowGrad = engine.world.ctx.createRadialGradient(pl.x, pl.y, rGlow0, pl.x, pl.y, rGlow1);
+      glowGrad.addColorStop(0, theme.glow);
+      glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      engine.world.ctx.fillStyle = glowGrad;
+      engine.world.ctx.fill();
+
+      // Draw the planet body (with safe non-negative radii)
+      const rBody0 = Math.max(0.1, radius * 0.1);
+      const rBody1 = Math.max(0.1, radius);
+      engine.world.ctx.beginPath();
+      engine.world.ctx.arc(pl.x, pl.y, rBody1, 0, Math.PI * 2);
+      const planetGrad = engine.world.ctx.createRadialGradient(pl.x - radius * 0.3, pl.y - radius * 0.3, rBody0, pl.x, pl.y, rBody1);
+      planetGrad.addColorStop(0, theme.inner);
+      planetGrad.addColorStop(0.65, theme.mid);
+      planetGrad.addColorStop(1.0, theme.outer);
+      engine.world.ctx.fillStyle = planetGrad;
+      engine.world.ctx.fill();
+
+      // Draw thin elegant ring system if it is sapphire or ruby theme
+      if (theme.name === 'sapphire' || theme.name === 'ruby') {
+        engine.world.ctx.save();
+        engine.world.ctx.translate(pl.x, pl.y);
+        engine.world.ctx.rotate(-Math.PI / 6);
+        engine.world.ctx.scale(1.8, 0.35);
+        engine.world.ctx.beginPath();
+        engine.world.ctx.arc(0, 0, Math.max(0.1, radius * 1.05), 0, Math.PI * 2);
+        engine.world.ctx.strokeStyle = theme.name === 'sapphire' ? 'rgba(120, 200, 255, 0.45)' : 'rgba(255, 160, 120, 0.45)';
+        engine.world.ctx.lineWidth = 3.0;
+        engine.world.ctx.stroke();
+        engine.world.ctx.restore();
+      }
+
+      // Draw a subtle orbit gravity range indicator ring (faded dotted line at pl.radius + 250)
+      engine.world.ctx.beginPath();
+      engine.world.ctx.arc(pl.x, pl.y, radius + 250, 0, Math.PI * 2);
+      engine.world.ctx.strokeStyle = `rgba(255, 255, 255, 0.04)`;
+      engine.world.ctx.lineWidth = 0.8;
+      engine.world.ctx.setLineDash([4, 12]);
+      engine.world.ctx.stroke();
+      engine.world.ctx.setLineDash([]);
+    }
+
     // 2. Sandbox Wormholes
     const wLen = engine.world.wormholes.length;
     for (let i = 0; i < wLen; i++) {
@@ -852,8 +1265,8 @@ export function updateAndDrawSandboxElements(engine: CosmicCanvasEngine, width: 
       engine.world.ctx.restore();
     }
 
-    // 4. Chrono Well bubble visual (while gravity paused on click/hold)
-    if (engine.world.activePower === 'TIME_DILATION' && isSandboxPowerChannelActive(engine) && engine.world.mouse.active && engine.world.mouse.x !== -1000) {
+    // 4. Chrono Well bubble visual (always active around mouse cursor when selected)
+    if (engine.world.activePower === 'TIME_DILATION' && engine.world.mouse.active && engine.world.mouse.x !== -1000) {
       engine.world.ctx.save();
       const charge = engine.world.isMouseDown ? getSandboxChargeProgress(engine) : 0.25;
       const bubbleRadius = 180 + charge * 180;

@@ -428,7 +428,11 @@ describe('BackgroundCanvasComponent', () => {
         speedFactor: 1.0
       }];
       
-      draw(eng(), );
+      // Expand the blackhole fully so gravity reaches the particle immediately
+      w().sandboxBlackholes[0].radius = w().sandboxBlackholes[0].maxRadius;
+      w().sandboxBlackholes[0].timer = 60;
+      
+      draw(eng());
       
       // Particle vx/vy should be modified (pulled towards 200, 200)
       expect(w().particles[0].vx).not.toBe(0);
@@ -450,6 +454,23 @@ describe('BackgroundCanvasComponent', () => {
       expect(nurseryParticle).toBeDefined();
       expect(Math.abs(nurseryParticle!.x - 300)).toBeLessThan(20);
       expect(Math.abs(nurseryParticle!.y - 300)).toBeLessThan(20);
+    });
+
+    it('should spawn a planet when Planet Forge is released after hold', () => {
+      component.selectPower('PLANET');
+      
+      const mousedownEvent = new MouseEvent('mousedown', { clientX: 200, clientY: 200 });
+      component.onMouseDown(mousedownEvent);
+      w().chargeTime = 40;
+      
+      const mouseupEvent = new MouseEvent('mouseup', { clientX: 200, clientY: 200 });
+      component.onMouseUp(mouseupEvent);
+      
+      expect(w().sandboxPlanets.length).toBe(1);
+      expect(w().sandboxPlanets[0].x).toBe(200);
+      expect(w().sandboxPlanets[0].y).toBe(200);
+      expect(w().sandboxPlanets[0].radius).toBeGreaterThan(12);
+      expect(w().sandboxPlanets[0].mass).toBeGreaterThan(0);
     });
 
     it('should repel particles when Anti-Gravity is clicked and gravity is paused', () => {

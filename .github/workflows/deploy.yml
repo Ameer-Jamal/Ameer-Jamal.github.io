@@ -41,6 +41,9 @@ jobs:
       - name: Unit tests (GitHub highlights + scripts)
         run: npm test
 
+      - name: Unit tests (Angular)
+        run: npm run test:ci
+
       - name: Refresh GitHub highlights JSON
         env:
           # Optional: create repo secret GH_PAT with repo read scope for higher API limits.

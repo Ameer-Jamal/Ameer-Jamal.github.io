@@ -56,6 +56,7 @@ export function usesDefaultMouseGravity(engine: CosmicCanvasEngine): boolean {
 
 export function transitionTo(engine: CosmicCanvasEngine, newState: GameState): void {
     engine.world.state = newState;
+    (engine.world as any).lastStateTickTime = typeof performance === 'undefined' ? Date.now() : performance.now();
     
     if (newState === 'EXPLODING') {
       engine.world.stateTimer = 40; // Cooldown frames

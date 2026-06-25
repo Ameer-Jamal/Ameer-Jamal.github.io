@@ -9,6 +9,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "node --test \"tests/**/*.test.mjs\" tests/githubProjects.test.js",
     "test:angular": "ng test",
+    "test:ci": "ng test --watch=false --browsers=ChromeHeadlessCI",
     "refresh:github-highlights": "node scripts/refresh-github-highlights.mjs",
     "serve:ssr:portfolio": "node dist/portfolio/server/server.mjs"
   },

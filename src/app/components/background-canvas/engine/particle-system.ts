@@ -26,7 +26,15 @@ export function spawnStellarBirth(engine: CosmicCanvasEngine, x: number, y: numb
 
     if (isNursery) {
       if (engine.world.nurseryStarCount >= getMaxNurseryStars(engine.world)) {
-        return false;
+        // Recycle the oldest active nursery star to keep producing stars on hold
+        const oldestNursery = engine.world.particles.find(p => p.isNursery && !p.isDying);
+        if (oldestNursery) {
+          oldestNursery.isDying = true;
+          engine.world.nurseryStarCount = Math.max(0, engine.world.nurseryStarCount - 1);
+          oldestNursery.isNursery = false;
+        } else {
+          return false;
+        }
       }
     } else if (engine.world.particles.length >= getMaxParticles(engine.world) + 15) {
       return false;

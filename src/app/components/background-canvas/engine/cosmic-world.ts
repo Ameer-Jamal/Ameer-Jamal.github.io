@@ -19,7 +19,9 @@ import {
   SpaceDust,
   Spark,
   TwinkleStar,
-  Wormhole
+  Wormhole,
+  SandboxChronoWell,
+  SandboxPlanet
 } from '../models/cosmic.types';
 
 export interface CosmicWorld {
@@ -54,7 +56,13 @@ export interface CosmicWorld {
   isSandboxPinned: boolean;
   activePower: MousePower;
   sandboxBlackholes: SandboxBlackhole[];
+  draggedBlackhole: SandboxBlackhole | null;
+  sandboxChronoWells: SandboxChronoWell[];
+  draggedChronoWell: SandboxChronoWell | null;
   wormholes: Wormhole[];
+  draggedWormhole: Wormhole | null;
+  sandboxPlanets: SandboxPlanet[];
+  draggedPlanet: SandboxPlanet | null;
   nurseryStarCount: number;
   paintHoldFrame: number;
   mouse: MouseState;
@@ -132,7 +140,13 @@ export function createCosmicWorld(canvas: HTMLCanvasElement, ctx: CanvasRenderin
     isSandboxPinned: false,
     activePower: 'DEFAULT',
     sandboxBlackholes: [],
+    draggedBlackhole: null,
+    sandboxChronoWells: [],
+    draggedChronoWell: null,
     wormholes: [],
+    draggedWormhole: null,
+    sandboxPlanets: [],
+    draggedPlanet: null,
     nurseryStarCount: 0,
     paintHoldFrame: 0,
     mouse: { x: -1000, y: -1000, active: false },

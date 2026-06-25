@@ -23,6 +23,7 @@ import {
   clearPageExplodeInlineStyles,
   restorePageExplodeElements
 } from './page-explode-targets';
+import { startBlackholeHum } from './audio';
 
 export function startLogoBlackhole(engine: CosmicCanvasEngine, logoX: number, logoY: number): void {
     if (engine.world.isLogoBlackholeActive || engine.world.isAyaDanceActive) return;
@@ -39,6 +40,9 @@ export function startLogoBlackhole(engine: CosmicCanvasEngine, logoX: number, lo
     transitionTo(engine, 'MOON_DANCE');
     engine.world.stateTimer = 390;
     engine.world.shakeTimer = 0; // wait to shake on blast
+
+    // Loud collapse build-up that crescendos into the big-bang explosion (390f ≈ 6.5s).
+    startBlackholeHum(6.5);
     
     if (typeof document === 'undefined') return;
 
@@ -63,6 +67,11 @@ export function startLogoBlackhole(engine: CosmicCanvasEngine, logoX: number, lo
 
 
 export function endLogoBlackhole(engine: CosmicCanvasEngine): void {
+    engine.world.isLogoBlackholeActive = false;
+    if (typeof document !== 'undefined') {
+      document.body.classList.remove('is-moon-dance-active');
+    }
+
     try {
       const logoEl = document.querySelector('.logo') as HTMLElement;
       const logoImg = document.querySelector('.logoImg') as HTMLElement;
@@ -70,16 +79,16 @@ export function endLogoBlackhole(engine: CosmicCanvasEngine): void {
       if (logoEl) {
         logoEl.classList.remove('logo-moon-transform');
         logoEl.classList.remove('logo-moon-explode');
-        logoEl.style.transition = 'none';
-        logoEl.style.transform = 'scale(0.1)';
-        logoEl.style.opacity = '0';
+        logoEl.style.setProperty('transition', 'none', 'important');
+        logoEl.style.setProperty('transform', 'scale(0.1)', 'important');
+        logoEl.style.setProperty('opacity', '0', 'important');
         logoEl.style.boxShadow = '';
         logoEl.style.borderColor = '';
         logoEl.style.background = '';
         void logoEl.offsetHeight; // force reflow
-        logoEl.style.transition = 'transform 1.2s cubic-bezier(0.15, 0.85, 0.3, 1.25), opacity 1.2s ease-out';
-        logoEl.style.transform = '';
-        logoEl.style.opacity = '1';
+        logoEl.style.setProperty('transition', 'transform 1.2s cubic-bezier(0.15, 0.85, 0.3, 1.25), opacity 1.2s ease-out', 'important');
+        logoEl.style.setProperty('transform', 'scale(1) translate3d(0, 0, 0)', 'important');
+        logoEl.style.setProperty('opacity', '1', 'important');
       }
       
       if (logoImg) {
@@ -105,12 +114,19 @@ export function endLogoBlackhole(engine: CosmicCanvasEngine): void {
         const logoImg = document.querySelector('.logoImg') as HTMLElement;
         if (logoEl) {
           logoEl.style.transition = '';
+          (logoEl.style as any).webkitTransition = '';
           logoEl.style.transform = '';
+          (logoEl.style as any).webkitTransform = '';
           logoEl.style.opacity = '';
+          logoEl.style.boxShadow = '';
+          logoEl.style.borderColor = '';
+          logoEl.style.background = '';
         }
         if (logoImg) {
           logoImg.style.transition = '';
+          (logoImg.style as any).webkitTransition = '';
           logoImg.style.transform = '';
+          (logoImg.style as any).webkitTransform = '';
           logoImg.style.opacity = '';
         }
         
@@ -118,12 +134,8 @@ export function endLogoBlackhole(engine: CosmicCanvasEngine): void {
       } catch (e) {
         console.warn('[LogoBlackhole] Failed cleanup:', e);
       }
-      engine.world.isLogoBlackholeActive = false;
       engine.world.logoElements = [];
       engine.world.logoOrigPositions = [];
-      if (typeof document !== 'undefined') {
-        document.body.classList.remove('is-moon-dance-active');
-      }
     }, 3000);
   }
 

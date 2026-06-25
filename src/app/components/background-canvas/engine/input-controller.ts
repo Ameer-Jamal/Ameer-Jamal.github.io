@@ -21,6 +21,7 @@ import { getMaxNurseryStars, getMaxParticles, getScaledConnectionDistance } from
 import { triggerRandomStopAction, isSandboxPowerEngaged, isMouseGravityActive, transitionTo, pauseMouseGravity, triggerNormalClickShockwave, triggerSuperMoveExplosion } from './state-machine';
 import { handleSandboxPowerRelease } from './sandbox-powers';
 import { startLogoBlackhole } from './logo-easter-egg';
+import { playPowerReleaseSound, updatePowerChargeAudio } from './audio';
 
 export function updatePointerCoords(engine: CosmicCanvasEngine, clientX: number, clientY: number): void {
     const canvas = engine.world.canvas;
@@ -41,6 +42,13 @@ export function clearPointerState(engine: CosmicCanvasEngine): void {
     engine.world.mouseVelocity.y = 0;
     engine.world.mouseMoving = false;
     engine.world.isMouseDown = false;
+    engine.world.draggedBlackhole = null;
+    engine.world.draggedWormhole = null;
+    engine.world.draggedChronoWell = null;
+    updatePowerChargeAudio('DEFAULT', false, 0);
+    if (engine.world.activePower !== 'DEFAULT') {
+      updatePowerChargeAudio(engine.world.activePower, false, 0);
+    }
   }
 
 
@@ -55,6 +63,32 @@ export function onPointerMove(engine: CosmicCanvasEngine, event: PointerEvent): 
     const prevY = engine.world.mouse.y;
 
     updatePointerCoords(engine, event.clientX, event.clientY);
+
+    const curX = engine.world.mouse.x;
+    const curY = engine.world.mouse.y;
+
+    if (engine.world.draggedBlackhole) {
+      engine.world.draggedBlackhole.x = curX;
+      engine.world.draggedBlackhole.y = curY;
+    }
+    if (engine.world.draggedWormhole) {
+      engine.world.draggedWormhole.x = curX;
+      engine.world.draggedWormhole.y = curY;
+    }
+    if (engine.world.draggedChronoWell) {
+      engine.world.draggedChronoWell.x = curX;
+      engine.world.draggedChronoWell.y = curY;
+    }
+    if (engine.world.draggedPlanet) {
+      engine.world.draggedPlanet.x = curX;
+      engine.world.draggedPlanet.y = curY;
+    }
+
+    if (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message')) {
+      if (prevX !== -1000 && Math.abs(curX - prevX) + Math.abs(curY - prevY) > 8) {
+        (window as any).__ayaSpawnTrailHearts?.(curX, curY);
+      }
+    }
 
     if (prevX !== -1000) {
       engine.world.mouseVelocity.x = engine.world.mouse.x - prevX;
@@ -97,6 +131,15 @@ export function onPointerCancel(engine: CosmicCanvasEngine, event: PointerEvent)
   }
 
 export function onPointerDown(engine: CosmicCanvasEngine, event: PointerEvent): void {
+    if (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message')) {
+      updatePointerCoords(engine, event.clientX, event.clientY);
+      const customSpawn = (window as any).__ayaSpawnHearts;
+      if (customSpawn) {
+        customSpawn(engine.world.mouse.x, engine.world.mouse.y);
+      }
+      return;
+    }
+
     if (engine.world.state === 'SINGULARITY' || engine.world.state === 'MOON_DANCE' || engine.world.state === 'AYA_FORMATION' || engine.world.state === 'LOADING' || engine.world.isAyaDanceActive) {
       return;
     }
@@ -126,6 +169,43 @@ export function onPointerDown(engine: CosmicCanvasEngine, event: PointerEvent): 
     engine.world.isMouseDown = true;
     engine.world.chargeTime = 0;
     engine.world.teslaHoldZapTimer = 0;
+
+    // Reset dragged references
+    engine.world.draggedBlackhole = null;
+    engine.world.draggedWormhole = null;
+    engine.world.draggedChronoWell = null;
+    engine.world.draggedPlanet = null;
+
+    const clickX = engine.world.mouse.x;
+    const clickY = engine.world.mouse.y;
+
+    // Check for wormhole drag first (precedence)
+    const wh = engine.world.wormholes.find(w => ((clickX - w.x) ** 2 + (clickY - w.y) ** 2 <= Math.max(35, w.radius) ** 2));
+    if (wh) {
+      engine.world.draggedWormhole = wh;
+      return;
+    }
+
+    // Check for blackhole drag
+    const bh = engine.world.sandboxBlackholes.find(b => !b.isDying && ((clickX - b.x) ** 2 + (clickY - b.y) ** 2 <= Math.max(30, b.radius) ** 2));
+    if (bh) {
+      engine.world.draggedBlackhole = bh;
+      return;
+    }
+
+    // Check for chrono well drag
+    const cw = engine.world.sandboxChronoWells.find(c => !c.isDying && ((clickX - c.x) ** 2 + (clickY - c.y) ** 2 <= Math.max(35, c.radius) ** 2));
+    if (cw) {
+      engine.world.draggedChronoWell = cw;
+      return;
+    }
+
+    // Check for planet drag
+    const pl = engine.world.sandboxPlanets.find(p => !p.isDying && ((clickX - p.x) ** 2 + (clickY - p.y) ** 2 <= Math.max(35, p.radius) ** 2));
+    if (pl) {
+      engine.world.draggedPlanet = pl;
+      return;
+    }
 
     if (engine.world.activePower === 'DEFAULT') {
       transitionTo(engine, 'CHARGING');
@@ -157,6 +237,15 @@ export function onPointerUp(engine: CosmicCanvasEngine, event: PointerEvent): vo
 
     updatePointerCoords(engine, event.clientX, event.clientY);
 
+    if (engine.world.draggedBlackhole || engine.world.draggedWormhole || engine.world.draggedChronoWell || engine.world.draggedPlanet) {
+      engine.world.draggedBlackhole = null;
+      engine.world.draggedWormhole = null;
+      engine.world.draggedChronoWell = null;
+      engine.world.draggedPlanet = null;
+      clearTouchPointerStateIfNeeded(engine, event);
+      return;
+    }
+
     if (engine.world.activePower !== 'DEFAULT') {
       handleSandboxPowerRelease(engine);
       pauseMouseGravity(engine, 90);
@@ -165,8 +254,12 @@ export function onPointerUp(engine: CosmicCanvasEngine, event: PointerEvent): vo
     }
 
     if (engine.world.chargeTime >= 20) {
+      updatePowerChargeAudio('DEFAULT', false, 0);
+      playPowerReleaseSound('DEFAULT', 'super');
       triggerSuperMoveExplosion(engine);
     } else {
+      updatePowerChargeAudio('DEFAULT', false, 0);
+      playPowerReleaseSound('DEFAULT', 'tap');
       transitionTo(engine, 'EXPLODING');
       triggerNormalClickShockwave(engine);
     }
@@ -215,6 +308,14 @@ export function onLogoBlackholeTrigger(engine: CosmicCanvasEngine): void {
       logoY = rect.top + rect.height / 2 - canvasRect.top;
     }
     
+    if (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message')) {
+      const customSpawn = (window as any).__ayaSpawnHearts;
+      if (customSpawn) {
+        customSpawn(logoX, logoY);
+      }
+      return;
+    }
+
     startLogoBlackhole(engine, logoX, logoY);
   }
 

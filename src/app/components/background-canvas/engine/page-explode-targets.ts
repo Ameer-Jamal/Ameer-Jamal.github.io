@@ -122,12 +122,12 @@ export function applyPageExplodeFrame(
   const scale = Math.max(0, 1.0 - Math.pow(progress, 1.6));
   const opacity = Math.max(0, 1.0 - Math.pow(progress, 1.3));
 
+  const transformVal = `translate3d(${tx}px, ${ty}px, 0) rotate(${rotate}deg) scale(${scale})`;
+
   htmlEl.style.setProperty('transition', 'none', 'important');
-  htmlEl.style.setProperty(
-    'transform',
-    `translate3d(${tx}px, ${ty}px, 0) rotate(${rotate}deg) scale(${scale})`,
-    'important'
-  );
+  htmlEl.style.setProperty('-webkit-transition', 'none', 'important');
+  htmlEl.style.setProperty('transform', transformVal, 'important');
+  htmlEl.style.setProperty('-webkit-transform', transformVal, 'important');
   htmlEl.style.setProperty('opacity', `${opacity}`, 'important');
 }
 
@@ -144,16 +144,21 @@ export function restorePageExplodeElements(elements: HTMLElement[], transformDur
     // transform and opacity back together so elements visibly cascade into place.
     const delay = Math.min(index * REASSEMBLE_STAGGER_MS, REASSEMBLE_STAGGER_MAX_MS);
     htmlEl.style.setProperty('transition', 'none', 'important');
+    htmlEl.style.setProperty('-webkit-transition', 'none', 'important');
     htmlEl.style.setProperty('opacity', '0', 'important');
     void htmlEl.offsetHeight;
-    htmlEl.style.setProperty(
-      'transition',
-      `transform ${transformDurationMs}ms cubic-bezier(0.25, 1.5, 0.45, 1) ${delay}ms, opacity ${Math.round(
-        transformDurationMs * 0.7
-      )}ms ease-in ${delay}ms`,
-      'important'
-    );
+
+    const transitionVal = `transform ${transformDurationMs}ms cubic-bezier(0.25, 1.5, 0.45, 1) ${delay}ms, opacity ${Math.round(
+      transformDurationMs * 0.7
+    )}ms ease-in ${delay}ms`;
+    const webkitTransitionVal = `-webkit-transform ${transformDurationMs}ms cubic-bezier(0.25, 1.5, 0.45, 1) ${delay}ms, opacity ${Math.round(
+      transformDurationMs * 0.7
+    )}ms ease-in ${delay}ms`;
+
+    htmlEl.style.setProperty('transition', transitionVal, 'important');
+    htmlEl.style.setProperty('-webkit-transition', webkitTransitionVal, 'important');
     htmlEl.style.setProperty('transform', 'translate3d(0, 0, 0) scale(1) rotate(0deg)', 'important');
+    htmlEl.style.setProperty('-webkit-transform', 'translate3d(0, 0, 0) scale(1) rotate(0deg)', 'important');
     htmlEl.style.setProperty('opacity', '1', 'important');
   });
 }
@@ -164,7 +169,9 @@ export function clearPageExplodeInlineStyles(elements: HTMLElement[]): void {
       return;
     }
     htmlEl.style.transition = '';
+    (htmlEl.style as any).webkitTransition = '';
     htmlEl.style.transform = '';
+    (htmlEl.style as any).webkitTransform = '';
     htmlEl.style.opacity = '';
   });
 }

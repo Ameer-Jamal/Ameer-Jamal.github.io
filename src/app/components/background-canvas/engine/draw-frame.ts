@@ -26,11 +26,31 @@ import { endLogoBlackhole } from './logo-easter-egg';
 import { beginAyaFormation, drawFormationLinks, endAyaFormation, tickAyaFormation } from './aya-formation';
 import { drawLoadingRingLinks, tickLoadingSpinner, tryCompleteLoading } from './loading-spinner';
 import { applyPageExplodeFrame, collectPageExplodeElements } from './page-explode-targets';
-import { getSandboxChargeProgress, tickSandboxCharge, drawSandboxPowerChargeAuras, applyBlackHolePreviewGravity, tryWormholeCapture, applyWormholeForcesToParticle, applySandboxBlackholeForces, tickTeslaHoldZaps, updateAndDrawSandboxElements } from './sandbox-powers';
+import { playSupernovaPop, stopBlackholeHum, updatePowerChargeAudio } from './audio';
+import { getSandboxChargeProgress, tickSandboxCharge, drawSandboxPowerChargeAuras, applyBlackHolePreviewGravity, tryWormholeCapture, applyWormholeForcesToParticle, applySandboxBlackholeForces, applySandboxChronoWellForces, tickTeslaHoldZaps, updateAndDrawSandboxElements, applySandboxPlanetForces, shatterPlanet } from './sandbox-powers';
+
+function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.beginPath();
+  const width = r * 2.3;
+  const height = r * 2.3;
+  ctx.moveTo(x, y + height / 4);
+  ctx.bezierCurveTo(x, y - height / 2, x - width / 2, y - height / 2, x - width / 2, y + height / 4);
+  ctx.bezierCurveTo(x - width / 2, y + height * 0.75, x, y + height * 0.75, x, y + height * 0.95);
+  ctx.bezierCurveTo(x, y + height * 0.75, x + width / 2, y + height * 0.75, x + width / 2, y + height / 4);
+  ctx.bezierCurveTo(x + width / 2, y - height / 2, x, y - height / 2, x, y + height / 4);
+}
 
 export function draw(engine: CosmicCanvasEngine): void {
     const width = engine.world.canvasWidth || window.innerWidth;
     const height = engine.world.canvasHeight || window.innerHeight;
+
+    // Time-based delta tracking to decouple engine states from screen refresh rate (60Hz vs 120Hz/144Hz)
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const lastTick = (engine.world as any).lastStateTickTime || now;
+    (engine.world as any).lastStateTickTime = now;
+    const deltaMs = now - lastTick;
+    const cappedDeltaMs = Math.min(100, deltaMs);
+    const frameDelta = deltaMs <= 0 ? 1.0 : cappedDeltaMs / (16.6667);
 
     // Auto close sandbox if website article modal is opened
     if (typeof document !== 'undefined' && document.body.classList.contains('is-article-visible')) {
@@ -89,6 +109,48 @@ export function draw(engine: CosmicCanvasEngine): void {
     if (engine.world.mouseGravityPauseTimer > 0) {
       engine.world.mouseGravityPauseTimer--;
     }
+    if ((engine.world as any).ayaHeartbeatTimer > 0) {
+      (engine.world as any).ayaHeartbeatTimer = Math.max(0, (engine.world as any).ayaHeartbeatTimer - frameDelta);
+      try {
+        if (typeof document !== 'undefined') {
+          const logoEl = document.querySelector('.logo') as HTMLElement;
+          const wrapperEl = document.getElementById('wrapper');
+          
+          const t = 50 - (engine.world as any).ayaHeartbeatTimer;
+          let heartbeatScale = 1.0;
+          if (t < 15) {
+            heartbeatScale = 1.0 + Math.sin((t / 15) * Math.PI) * 0.35;
+          } else if (t >= 22 && t < 37) {
+            heartbeatScale = 1.0 + Math.sin(((t - 22) / 15) * Math.PI) * 0.22;
+          }
+          
+          if (logoEl && document.body.classList.contains('is-aya-message')) {
+            logoEl.style.transform = `scale(${heartbeatScale})`;
+          }
+          if (wrapperEl) {
+            const screenScale = 1.0 + (heartbeatScale - 1.0) * 0.08;
+            wrapperEl.style.transform = `scale(${screenScale})`;
+            wrapperEl.style.setProperty('transition', 'none', 'important');
+          }
+        }
+      } catch (e) {}
+
+      if ((engine.world as any).ayaHeartbeatTimer === 0) {
+        try {
+          if (typeof document !== 'undefined') {
+            const logoEl = document.querySelector('.logo') as HTMLElement;
+            if (logoEl) {
+              logoEl.style.transform = '';
+            }
+            const wrapperEl = document.getElementById('wrapper');
+            if (wrapperEl) {
+              wrapperEl.style.transform = '';
+              wrapperEl.style.transition = '';
+            }
+          }
+        } catch (e) {}
+      }
+    }
 
     if (engine.world.state === 'SWARM') {
       if (engine.world.activePower === 'DEFAULT' && !engine.world.isMouseDown && engine.world.mouse.active && engine.world.mouseMoving) {
@@ -98,7 +160,7 @@ export function draw(engine: CosmicCanvasEngine): void {
         }
       }
     } else if (engine.world.state === 'SINGULARITY') {
-      engine.world.stateTimer--;
+      engine.world.stateTimer -= frameDelta;
       if (engine.world.stateTimer <= 0) {
         transitionTo(engine, 'EXPLODING');
         
@@ -120,13 +182,16 @@ export function draw(engine: CosmicCanvasEngine): void {
         engine.world.shakeTimer = 15;
       }
     } else if (engine.world.state === 'MOON_DANCE') {
-      engine.world.stateTimer--;
-      engine.world.logoBlackholeTimer++;
+      engine.world.stateTimer -= frameDelta;
+      engine.world.logoBlackholeTimer += frameDelta;
 
       // Gradually fade out background space environment into black
-      if (engine.world.stateTimer > 90) {
+      const totalDanceTimer = engine.world.isAyaDanceActive ? 360 : 390;
+      const fadeThreshold = engine.world.isAyaDanceActive ? 90 : 90;
+      if (engine.world.stateTimer > fadeThreshold) {
         const blackoutTarget = engine.world.isAyaDanceActive ? 0.98 : 0.96;
-        engine.world.blackoutAlpha = Math.min(blackoutTarget, ((390 - engine.world.stateTimer) / 300) * blackoutTarget);
+        const fadeDuration = totalDanceTimer - fadeThreshold;
+        engine.world.blackoutAlpha = Math.min(blackoutTarget, ((totalDanceTimer - engine.world.stateTimer) / fadeDuration) * blackoutTarget);
       } else {
         engine.world.blackoutAlpha = engine.world.isAyaDanceActive ? 0.98 : 0.96;
         
@@ -229,9 +294,11 @@ export function draw(engine: CosmicCanvasEngine): void {
 
           beginAyaFormation(engine);
         } else {
-        transitionTo(engine, 'EXPLODING');
-        engine.world.stateTimer = 240;
-        engine.world.screenFlash = 14;
+          stopBlackholeHum();
+          transitionTo(engine, 'EXPLODING');
+          playSupernovaPop();
+          engine.world.stateTimer = 240;
+          engine.world.screenFlash = 14;
 
         // Reset particle birth progress and blend so they are bright and flash out on explosion
         for (const p of engine.world.particles) {
@@ -336,7 +403,7 @@ export function draw(engine: CosmicCanvasEngine): void {
         }
       }
     } else if (engine.world.state === 'AYA_FORMATION') {
-      engine.world.stateTimer--;
+      engine.world.stateTimer -= frameDelta;
       tickAyaFormation(engine);
       if (engine.world.stateTimer <= 0) {
         endAyaFormation(engine);
@@ -345,10 +412,10 @@ export function draw(engine: CosmicCanvasEngine): void {
       tickLoadingSpinner(engine);
       tryCompleteLoading(engine);
     } else if (engine.world.state === 'EXPLODING') {
-      engine.world.stateTimer--;
+      engine.world.stateTimer -= frameDelta;
       // Slowly fade out the background blackout
       if (engine.world.blackoutAlpha > 0) {
-        const fadeStep = engine.world.isAyaDanceActive ? 0.006 : 0.015;
+        const fadeStep = (engine.world.isAyaDanceActive ? 0.006 : 0.015) * frameDelta;
         engine.world.blackoutAlpha = Math.max(0, engine.world.blackoutAlpha - fadeStep);
       }
       if (engine.world.stateTimer <= 0 && engine.world.shockwaves.length === 0) {
@@ -523,6 +590,9 @@ export function draw(engine: CosmicCanvasEngine): void {
 
     // --- UPDATE & RENDER SANDBOX SIMULATION ELEMENTS ---
     tickSandboxCharge(engine);
+    if (engine.world.activePower !== 'DEFAULT') {
+      updatePowerChargeAudio(engine.world.activePower, engine.world.isMouseDown, getSandboxChargeProgress(engine));
+    }
     tickTeslaHoldZaps(engine);
     applyBlackHolePreviewGravity(engine);
     updateAndDrawSandboxElements(engine, width, height);
@@ -533,6 +603,7 @@ export function draw(engine: CosmicCanvasEngine): void {
     if (engine.world.state === 'CHARGING' && usesDefaultMouseGravity(engine)) {
       engine.world.chargeTime++;
       chargeProgress = Math.min(1.0, engine.world.chargeTime / 60);
+      updatePowerChargeAudio('DEFAULT', true, chargeProgress);
 
       const auroraRadius = 35 + chargeProgress * 95;
       const pulse = Math.sin(Date.now() / 60) * 10;
@@ -559,6 +630,8 @@ export function draw(engine: CosmicCanvasEngine): void {
           drawMiniChargeArc(engine, engine.world.mouse.x, engine.world.mouse.y, nearby.x, nearby.y);
         }
       }
+    } else if (engine.world.activePower === 'DEFAULT') {
+      updatePowerChargeAudio('DEFAULT', false, 0);
     }
 
     // 6. Render Active Singularity / Moon Corona
@@ -641,6 +714,18 @@ export function draw(engine: CosmicCanvasEngine): void {
         continue;
       }
 
+      // Check if shockwave hits planets and shatters them
+      for (const pl of engine.world.sandboxPlanets) {
+        if (!pl.isDying) {
+          const dx = pl.x - s.x;
+          const dy = pl.y - s.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < s.radius && dist > s.radius - s.speed * 2) {
+            shatterPlanet(engine, pl);
+          }
+        }
+      }
+
       engine.world.ctx.beginPath();
       engine.world.ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
       engine.world.ctx.strokeStyle = `rgba(${s.color}, ${s.alpha * 0.45})`;
@@ -659,22 +744,60 @@ export function draw(engine: CosmicCanvasEngine): void {
       const sp = engine.world.sparks[i];
       sp.x += sp.vx;
       sp.y += sp.vy;
-      sp.alpha -= 0.025;
+      sp.alpha -= 0.022; // slightly slower fade for hearts / click sparks to linger
 
       if (sp.alpha <= 0) {
         engine.world.sparks.splice(i, 1);
         continue;
       }
 
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(sp.x, sp.y, sp.radius, 0, Math.PI * 2);
-      engine.world.ctx.fillStyle = `${sp.color}${sp.alpha})`;
-      engine.world.ctx.fill();
+      if ((sp as any).isHeart) {
+        engine.world.ctx.save();
+        engine.world.ctx.translate(sp.x, sp.y);
+        if ((sp as any).rotation !== undefined) {
+          engine.world.ctx.rotate((sp as any).rotation);
+        }
+        const r = sp.radius;
 
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(sp.x, sp.y, sp.radius * 2.5, 0, Math.PI * 2);
-      engine.world.ctx.fillStyle = `${sp.color}${sp.alpha * 0.25})`;
-      engine.world.ctx.fill();
+        // Core heart
+        engine.world.ctx.beginPath();
+        engine.world.ctx.moveTo(0, -r * 0.3);
+        engine.world.ctx.bezierCurveTo(-r / 2, -r, -r, -r * 0.7, -r, 0);
+        engine.world.ctx.bezierCurveTo(-r, r * 0.6, -r / 3, r * 1.0, 0, r * 1.35);
+        engine.world.ctx.bezierCurveTo(r / 3, r * 1.0, r, r * 0.6, r, 0);
+        engine.world.ctx.bezierCurveTo(r, -r * 0.7, r / 2, -r, 0, -r * 0.3);
+        engine.world.ctx.closePath();
+        engine.world.ctx.fillStyle = `${sp.color}${sp.alpha})`;
+        engine.world.ctx.fill();
+
+        // Glow heart halo
+        engine.world.ctx.beginPath();
+        const hr = r * 1.7;
+        engine.world.ctx.moveTo(0, -hr * 0.3);
+        engine.world.ctx.bezierCurveTo(-hr / 2, -hr, -hr, -hr * 0.7, -hr, 0);
+        engine.world.ctx.bezierCurveTo(-hr, hr * 0.6, -hr / 3, hr * 1.0, 0, hr * 1.35);
+        engine.world.ctx.bezierCurveTo(hr / 3, hr * 1.0, hr, hr * 0.6, hr, 0);
+        engine.world.ctx.bezierCurveTo(hr, -hr * 0.7, hr / 2, -hr, 0, -hr * 0.3);
+        engine.world.ctx.closePath();
+        engine.world.ctx.fillStyle = `${sp.color}${sp.alpha * 0.25})`;
+        engine.world.ctx.fill();
+
+        engine.world.ctx.restore();
+
+        if ((sp as any).rotation !== undefined && (sp as any).rotSpeed !== undefined) {
+          (sp as any).rotation += (sp as any).rotSpeed;
+        }
+      } else {
+        engine.world.ctx.beginPath();
+        engine.world.ctx.arc(sp.x, sp.y, sp.radius, 0, Math.PI * 2);
+        engine.world.ctx.fillStyle = `${sp.color}${sp.alpha})`;
+        engine.world.ctx.fill();
+
+        engine.world.ctx.beginPath();
+        engine.world.ctx.arc(sp.x, sp.y, sp.radius * 2.5, 0, Math.PI * 2);
+        engine.world.ctx.fillStyle = `${sp.color}${sp.alpha * 0.25})`;
+        engine.world.ctx.fill();
+      }
     }
 
     // 9.5. Spawn, Update & Render Background Blackholes (Spontaneous cosmic events)
@@ -761,10 +884,8 @@ export function draw(engine: CosmicCanvasEngine): void {
     // Spawn painted stars during drag if paint brush is active
     if (engine.world.isMouseDown && engine.world.activePower === 'PAINT_BRUSH' && engine.world.mouse.x !== -1000) {
       engine.world.paintHoldFrame++;
-      if (engine.world.nurseryStarCount < getMaxNurseryStars(engine.world) && engine.world.paintHoldFrame % 2 === 0) {
+      if (engine.world.paintHoldFrame % 2 === 0) {
         spawnNurseryStar(engine, engine.world.mouse.x, engine.world.mouse.y);
-      } else if (engine.world.nurseryStarCount >= getMaxNurseryStars(engine.world) && engine.world.paintHoldFrame % 8 === 0) {
-        spawnStardustPuff(engine, engine.world.mouse.x, engine.world.mouse.y, 'rgba(255, 220, 180,');
       }
     } else {
       engine.world.paintHoldFrame = 0;
@@ -939,10 +1060,16 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
       }
 
-      // D2. Sandbox black hole + wormhole world physics (persistent until CLEAR)
+      // D2. Sandbox black hole + wormhole + Chrono Well + Planet world physics (persistent until CLEAR)
       if (!inFormation && !inLoadingRing) {
       for (const sbh of engine.world.sandboxBlackholes) {
         applySandboxBlackholeForces(engine, p, sbh);
+      }
+      for (const cw of engine.world.sandboxChronoWells) {
+        applySandboxChronoWellForces(engine, p, cw);
+      }
+      for (const pl of engine.world.sandboxPlanets) {
+        applySandboxPlanetForces(engine, p, pl);
       }
       applyWormholeForcesToParticle(engine, p);
       }
@@ -967,6 +1094,24 @@ export function draw(engine: CosmicCanvasEngine): void {
             p.vx = (p.vx / speed) * maxSpeed;
             p.vy = (p.vy / speed) * maxSpeed;
           }
+        }
+      }
+
+      // Aya Easter Egg Interactive Gravity: let the user interactively influence the particles
+      // during the moon dance/star formation before the final explosion.
+      if (engine.world.isAyaDanceActive && engine.world.mouse.active && engine.world.mouse.x !== -1000) {
+        const dx = engine.world.mouse.x - p.x;
+        const dy = engine.world.mouse.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const attractDist = 300;
+        if (dist < attractDist) {
+          const pullStrength = (attractDist - dist) / attractDist;
+          // Apply a gentle force to influence the star paths interactively
+          const forceMultiplier = engine.world.state === 'AYA_FORMATION' ? 0.35 : 0.65;
+          p.vx += (dx / dist) * pullStrength * 0.78 * forceMultiplier;
+          p.vy += (dy / dist) * pullStrength * 0.78 * forceMultiplier;
+          p.vx += (-dy / dist) * pullStrength * 0.15 * forceMultiplier;
+          p.vy += (dx / dist) * pullStrength * 0.15 * forceMultiplier;
         }
       }
 
@@ -1012,8 +1157,8 @@ export function draw(engine: CosmicCanvasEngine): void {
         }
       }
 
-      // Chrono Well — time slow + gentle inward drift while sandbox channel is active
-      if (engine.world.activePower === 'TIME_DILATION' && isSandboxPowerChannelActive(engine) && engine.world.mouse.active && engine.world.mouse.x !== -1000) {
+      // Chrono Well — time slow + gentle inward drift (always active around mouse cursor when selected)
+      if (engine.world.activePower === 'TIME_DILATION' && engine.world.mouse.active && engine.world.mouse.x !== -1000) {
         const charge = engine.world.isMouseDown ? getSandboxChargeProgress(engine) : 0.25;
         const fieldRadius = 180 + charge * 180;
         const dx = engine.world.mouse.x - p.x;
@@ -1225,8 +1370,23 @@ export function draw(engine: CosmicCanvasEngine): void {
         currentRadius = p.radius * (1.0 - p.deathProgress);
       }
 
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(p.x, p.y, currentRadius, 0, Math.PI * 2);
+      if ((engine.world as any).ayaHeartbeatTimer > 0) {
+        let heartbeatScale = 1.0;
+        const t = 50 - (engine.world as any).ayaHeartbeatTimer;
+        if (t < 15) {
+          heartbeatScale = 1.0 + Math.sin((t / 15) * Math.PI) * 0.35;
+        } else if (t >= 22 && t < 37) {
+          heartbeatScale = 1.0 + Math.sin(((t - 22) / 15) * Math.PI) * 0.22;
+        }
+        currentRadius *= heartbeatScale;
+      }
+
+      if (p.isHeart) {
+        drawHeart(engine.world.ctx, p.x, p.y, currentRadius);
+      } else {
+        engine.world.ctx.beginPath();
+        engine.world.ctx.arc(p.x, p.y, currentRadius, 0, Math.PI * 2);
+      }
       
       if (p.birthProgress < 1.0) {
         engine.world.ctx.fillStyle = `${p.colorPrefix}${p.birthProgress * 0.95})`;
@@ -1245,8 +1405,12 @@ export function draw(engine: CosmicCanvasEngine): void {
       engine.world.ctx.fill();
 
       // Render outer glowing halo
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(p.x, p.y, currentRadius * 2.8, 0, Math.PI * 2);
+      if (p.isHeart) {
+        drawHeart(engine.world.ctx, p.x, p.y, currentRadius * 2.8);
+      } else {
+        engine.world.ctx.beginPath();
+        engine.world.ctx.arc(p.x, p.y, currentRadius * 2.8, 0, Math.PI * 2);
+      }
       if (p.birthProgress < 1.0) {
         engine.world.ctx.fillStyle = `${p.colorPrefix}${p.birthProgress * 0.22})`;
       } else if (p.isDying) {
@@ -1399,7 +1563,7 @@ export function draw(engine: CosmicCanvasEngine): void {
             engine.world.ctx.stroke();
           }
         }
-      } else if (engine.world.activePower === 'TIME_DILATION' && isSandboxPowerChannelActive(engine) && engine.world.mouse.active && engine.world.mouse.x !== -1000) {
+      } else if (engine.world.activePower === 'TIME_DILATION' && engine.world.mouse.active && engine.world.mouse.x !== -1000) {
         const charge = engine.world.isMouseDown ? getSandboxChargeProgress(engine) : 0.25;
         const wellRadius = 180 + charge * 180;
         const dx = engine.world.mouse.x - p.x;
@@ -1419,6 +1583,32 @@ export function draw(engine: CosmicCanvasEngine): void {
             engine.world.ctx.moveTo(p.x, p.y);
             engine.world.ctx.lineTo(pullX, pullY);
             engine.world.ctx.strokeStyle = `rgba(120, 220, 255, ${alpha})`;
+            engine.world.ctx.lineWidth = 1.0;
+            engine.world.ctx.stroke();
+          }
+        }
+      }
+
+      // Draw connection vectors for persistent Chrono Wells
+      for (const cw of engine.world.sandboxChronoWells) {
+        const cwRadius = cw.radius;
+        const dx = cw.x - p.x;
+        const dy = cw.y - p.y;
+        const distSq = dx * dx + dy * dy;
+        const wellLimitSq = cwRadius * cwRadius;
+
+        if (distSq < wellLimitSq && distSq > 1) {
+          const dist = Math.sqrt(distSq);
+          let alpha = (1 - dist / cwRadius) * 0.28 * (cw.radius / cw.maxRadius);
+          if (p.isDying) alpha *= (1.0 - p.deathProgress);
+
+          if (alpha > 0.01) {
+            const pullX = p.x + (dx / dist) * 12;
+            const pullY = p.y + (dy / dist) * 12;
+            engine.world.ctx.beginPath();
+            engine.world.ctx.moveTo(p.x, p.y);
+            engine.world.ctx.lineTo(pullX, pullY);
+            engine.world.ctx.strokeStyle = `rgba(0, 240, 255, ${alpha})`;
             engine.world.ctx.lineWidth = 1.0;
             engine.world.ctx.stroke();
           }

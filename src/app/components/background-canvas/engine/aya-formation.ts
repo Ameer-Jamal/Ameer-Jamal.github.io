@@ -2,7 +2,7 @@ import { getAyaLetterScale, getWorldLetterTargets } from '../models/aya-constell
 import type { CosmicCanvasEngine } from './cosmic-canvas-engine';
 import { endAyaDance } from './aya-easter-egg';
 import { playSupernovaPop, stopBlackholeHum } from './audio';
-import { spawnILoveYouMessage } from './effects';
+import { spawnILoveYouMessage, spawnAyaConstellation } from './effects';
 import { transitionTo } from './state-machine';
 
 const PINK_COLORS = [
@@ -41,14 +41,39 @@ export function beginAyaFormation(engine: CosmicCanvasEngine): void {
 
   const messageY = world.ayaFormationCenterY + scale * 0.58;
   spawnILoveYouMessage(engine, world.ayaFormationCenterX, messageY, scale * 0.72);
+  spawnAyaConstellation(engine, world.ayaFormationCenterX, world.ayaFormationCenterY, scale);
 
   // Play supernova blast sound
   playSupernovaPop();
 
   transitionTo(engine, 'AYA_FORMATION');
-  // Initially hold AYA_FORMATION for 4 seconds during constellation build-up and page explosion
-  world.stateTimer = 240;
+  // Initially hold AYA_FORMATION for 2.5 seconds during constellation build-up and page explosion
+  world.stateTimer = 150;
   world.screenFlash = 16;
+}
+
+export function restoreAyaConstellation(engine: CosmicCanvasEngine): void {
+  const world = engine.world;
+  const scale = getAyaLetterScale(world.canvasWidth, world.canvasHeight);
+  const targets = getWorldLetterTargets(world.ayaFormationCenterX, world.ayaFormationCenterY, scale);
+  const targetCount = targets.length;
+
+  for (let i = 0; i < world.particles.length; i++) {
+    const p = world.particles[i];
+    const target = targets[i % targetCount];
+    const isExtra = i >= targetCount;
+    const jitter = isExtra ? 28 : 0;
+
+    p.formationTx = target.x + (isExtra ? (Math.random() - 0.5) * jitter : 0);
+    p.formationTy = target.y + (isExtra ? (Math.random() - 0.5) * jitter : 0);
+    p.formationActive = true;
+    p.colorPrefix = PINK_COLORS[i % PINK_COLORS.length];
+    p.colorBlend = 1;
+    p.birthProgress = 1;
+    p.isDying = false;
+    p.deathProgress = 0;
+    p.radius = Math.max(p.baseRadius, 2.4);
+  }
 }
 
 export function tickAyaFormation(engine: CosmicCanvasEngine): void {
@@ -58,13 +83,24 @@ export function tickAyaFormation(engine: CosmicCanvasEngine): void {
     world.blackoutAlpha = Math.max(0.35, world.blackoutAlpha - 0.008);
   }
 
+  const time = Date.now() / 1000;
+
   for (const p of world.particles) {
     if (!p.formationActive || p.formationTx === undefined || p.formationTy === undefined) {
       continue;
     }
 
-    const dx = p.formationTx - p.x;
-    const dy = p.formationTy - p.y;
+    // Add a gentle, organic floating/breathing wobble to keep the particles alive and dynamic when stationary
+    const phaseX = (p.formationTx * 0.04) + time * 1.4;
+    const phaseY = (p.formationTy * 0.04) + time * 1.1;
+    const wobbleX = Math.sin(phaseX) * 1.6;
+    const wobbleY = Math.cos(phaseY) * 1.6;
+
+    const targetX = p.formationTx + wobbleX;
+    const targetY = p.formationTy + wobbleY;
+
+    const dx = targetX - p.x;
+    const dy = targetY - p.y;
     p.vx += dx * FORMATION_SPRING;
     p.vy += dy * FORMATION_SPRING;
     p.vx *= FORMATION_DAMP;
@@ -116,6 +152,13 @@ export function endAyaFormation(engine: CosmicCanvasEngine): void {
   if ((engine.world as any).isHeartSwarmActive) {
     (engine.world as any).isHeartSwarmActive = false;
     
+    if (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message')) {
+      restoreAyaConstellation(engine);
+      transitionTo(engine, 'AYA_FORMATION');
+      engine.world.stateTimer = 999999;
+      return;
+    }
+
     // Dissolve the heart swarm back to DRIFT state instead of restoring "AYA"
     for (const p of engine.world.particles) {
       p.formationActive = false;
@@ -133,7 +176,7 @@ export function endAyaFormation(engine: CosmicCanvasEngine): void {
     return;
   }
 
-  // If the 4-second initial admire/constellation formation timer finishes:
+  // If the 2.5-second initial admire/constellation formation timer finishes:
   if (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message')) {
     // Restore the page UI so the user can interact with the menu
     endAyaDance(engine);

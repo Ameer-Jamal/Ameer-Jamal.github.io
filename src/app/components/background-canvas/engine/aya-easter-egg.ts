@@ -15,26 +15,61 @@ import {
   playTypewriterClick
 } from './audio';
 
-const KEY_TIMEOUT_MS = 2000;
-const AYA_DANCE_COOLDOWN_MS = 0;
 
-const AYA_NAME = 'Aya';
-const AYA_MIDLINE = 'Najoomtee ⭐';
-const AYA_TAGLINE = 'I love you to the moon and back. Thank you for always being by my side.\nI wish I could give you the universe, but all I can offer at this moment is a piece of the stars\nSo may every star in this sky guide us closer to each other’s hearts ❤️';
+export const AYA_CONFIG = {
+  trigger: {
+    name: 'aya',
+    email: 'ayaalmansour02@gmail.com',
+    message: 'snowman'
+  },
+  triggerKeywords: ['snowman'],
 
-// Quick fly-in so the text materializes fast and the letter-morph plays out
-// visibly on screen (rather than finishing while still off-screen).
-const REASSEMBLE_MS = 1100;
-const STAGGER_MAX_MS = 400;
-const MORPH_STAGGER_MS = 120;
-const MESSAGE_HOLD_MS = 60_000;
+  /** Hero/header copy swapped in while the easter egg is active. */
+  copy: {
+    name: 'Aya',
+    midline: 'Najoomtee ⭐',
+    tagline:
+      'I love you to the moon and back. Thank you for always being by my side.\nI wish I could give you the universe, but all I can offer at this moment is a piece of the stars\nSo may every star in this sky guide us closer to each other’s hearts ❤️'
+  },
 
-/** Nav link copy, keyed by anchor href, swapped during Aya's time. */
-const AYA_NAV_LABELS: Record<string, string> = {
-  '#CV': 'Habibti',
-  '#work': 'Hayati',
-  '#contact': 'Albi',
-  '#omree': '3omree'
+  /** Nav link copy, keyed by anchor href, swapped during Aya's time. */
+  navLabels: {
+    '#CV': 'Habibti',
+    '#work': 'Hayati',
+    '#contact': 'Albi',
+    '#omree': '3omree'
+  } as Record<string, string>,
+
+  /** Copy for the typewriter love-letter modal. */
+  letter: {
+    title: 'A Note among the stars ❤️',
+    signature: 'Forever Yours,<br>Ameer',
+    // The Arabic verse (Surah An-Nahl 16:16) is left inline at its usage site to
+    // preserve its exact Unicode (diacritics + RTL marks) without risk of mangling.
+    arabicVerseSource: 'Surah An-Nahl 16:16 · And by the stars they are guided',
+    lines: [
+      'Aya, Najoomtee 💫,',
+      '',
+      'I built this little piece of the sky for you because you have always been the brightest part of mine, no matter how cold it is in the depths of space I know you\'ll always be there to keep me warm. Thank you for standing beside me, for being my calm, my home, and the person who makes the world feel whole. You will always carry me like the stars carry the moon.',
+      '',
+      'I know it is hard for me to show you the world right now, but I hope this small corner of it that I built for you shows even a piece of what you mean to me.',
+      '',
+      'Through the late nights, the countless hours of debugging, the mistakes, and everything I have had to learn along the way, I always found comfort knowing that we still look up at the same sky at night. May these stars keep guiding us back to each other, no matter where life takes us.',
+      '❤️'
+    ]
+  },
+
+  /** Animation + lifecycle timing in milliseconds. */
+  timing: {
+    keyTimeoutMs: 2000,
+    danceCooldownMs: 0,
+    // Quick fly-in so the text materializes fast and the letter-morph plays out
+    // visibly on screen (rather than finishing while still off-screen).
+    reassembleMs: 1100,
+    staggerMaxMs: 400,
+    morphStaggerMs: 120,
+    messageHoldMs: 1_800_000
+  }
 };
 
 let keyBuffer = '';
@@ -84,7 +119,7 @@ export function triggerHeartSwarm(engine: CosmicCanvasEngine, clickX: number, cl
   
   (world as any).isHeartSwarmActive = true;
   transitionTo(engine, 'AYA_FORMATION');
-  world.stateTimer = 240; // 4 seconds hold
+  world.stateTimer = 150; // 2.5 seconds hold
   world.screenFlash = 10;
 }
 
@@ -220,7 +255,7 @@ export function showLoveLetterModal(engine: CosmicCanvasEngine): void {
   scrollContainer.style.scrollbarColor = 'rgba(255, 120, 180, 0.3) transparent';
   
   const header = document.createElement('h3');
-  header.textContent = 'A Note among the stars ❤️';
+  header.textContent = AYA_CONFIG.letter.title;
   header.style.fontSize = '1.5rem';
   header.style.fontWeight = '700';
   header.style.margin = '0 0 18px 0';
@@ -268,7 +303,7 @@ export function showLoveLetterModal(engine: CosmicCanvasEngine): void {
   arabicQuoteMain.style.letterSpacing = '0.02em';
 
   const arabicQuoteSub = document.createElement('div');
-  arabicQuoteSub.textContent = 'Surah An-Nahl 16:16 · And by the stars they are guided';
+  arabicQuoteSub.textContent = AYA_CONFIG.letter.arabicVerseSource;
   arabicQuoteSub.style.marginTop = '0.25rem';
   arabicQuoteSub.style.fontSize = '0.75rem';
   arabicQuoteSub.style.fontFamily = "'Inter', system-ui, sans-serif";
@@ -293,17 +328,7 @@ export function showLoveLetterModal(engine: CosmicCanvasEngine): void {
   modal.style.transform = 'translate(-50%, -50%) scale(1)';
   overlay.style.opacity = '1';
 
-  const fullText = [
-    'Aya, Najoomtee 💫,',
-    '',
-    'I built this little piece of the sky for you because you have always been the brightest part of mine, no matter how cold it is in the depths of space I know you\'ll always be there to keep me warm. Thank you for standing beside me, for being my calm, my home, and the person who makes the world feel whole. You will always carry me like the stars carry the moon.',
-    '',
-    'I know it is hard for me to show you the world right now, but I hope this small corner of it that I built for you shows even a piece of what you mean to me.',
-    '',
-    'Through the late nights, the countless hours of debugging, the mistakes, and everything I have had to learn along the way, I always found comfort knowing that we still look up at the same sky at night. May these stars keep guiding us back to each other, no matter where life takes us.'
-    ,
-    '❤️'
-  ].join('\n');
+  const fullText = AYA_CONFIG.letter.lines.join('\n');
   let charIdx = 0;
 
   const type = () => {
@@ -328,7 +353,7 @@ export function showLoveLetterModal(engine: CosmicCanvasEngine): void {
       setTimeout(type, delay);
     } else {
       arabicQuote.style.opacity = '1';
-      signature.innerHTML = 'Forever Yours,<br>Ameer';
+      signature.innerHTML = AYA_CONFIG.letter.signature;
       signature.style.opacity = '1';
     }
   };
@@ -369,13 +394,13 @@ function getAyaSwapTargets(): { el: HTMLElement; love: string }[] {
   const inner = document.querySelector('#header .content .inner') as HTMLElement | null;
   const mid = inner ? (inner.querySelector(':scope > p') as HTMLElement | null) : null;
   const sub = document.querySelector('#header .subIntro p') as HTMLElement | null;
-  if (h1) targets.push({ el: h1, love: AYA_NAME });
-  if (mid) targets.push({ el: mid, love: AYA_MIDLINE });
-  if (sub) targets.push({ el: sub, love: AYA_TAGLINE });
+  if (h1) targets.push({ el: h1, love: AYA_CONFIG.copy.name });
+  if (mid) targets.push({ el: mid, love: AYA_CONFIG.copy.midline });
+  if (sub) targets.push({ el: sub, love: AYA_CONFIG.copy.tagline });
 
   document.querySelectorAll('#header nav ul li a').forEach((node) => {
     const link = node as HTMLElement;
-    const love = AYA_NAV_LABELS[link.getAttribute('href') ?? ''];
+    const love = AYA_CONFIG.navLabels[link.getAttribute('href') ?? ''];
     if (love) {
       targets.push({ el: link, love });
     }
@@ -532,7 +557,7 @@ export function showAyaMessage(engine: CosmicCanvasEngine): number {
   let totalMs = 0;
   ayaOriginalText.forEach((t, i) => {
     const durationMs = morphDurationFor(t.love);
-    const delayMs = i * MORPH_STAGGER_MS;
+    const delayMs = i * AYA_CONFIG.timing.morphStaggerMs;
     totalMs = Math.max(totalMs, durationMs + delayMs);
     activeMorphs.push(morphElementText(t.el, t.love, { durationMs, delayMs }));
   });
@@ -609,11 +634,11 @@ export function showAyaMessage(engine: CosmicCanvasEngine): number {
 
         const durationMs = morphDurationFor('3omree');
         activeMorphs.push(morphElementText(omreeAnchor, '3omree', { durationMs, delayMs: 0 }));
-      }, REASSEMBLE_MS);
+      }, AYA_CONFIG.timing.reassembleMs);
     }
   }
 
-  const omreeDuration = REASSEMBLE_MS + morphDurationFor('3omree');
+  const omreeDuration = AYA_CONFIG.timing.reassembleMs + morphDurationFor('3omree');
   totalMs = Math.max(totalMs, omreeDuration);
 
   (window as any).__ayaSpawnHearts = (clickX: number, clickY: number) => {
@@ -824,7 +849,7 @@ export function revertAyaMessage(engine: CosmicCanvasEngine): void {
     tempDiv.innerHTML = html;
     const originalText = tempDiv.textContent ?? '';
     const duration = morphDurationFor(originalText);
-    const delay = i * MORPH_STAGGER_MS;
+    const delay = i * AYA_CONFIG.timing.morphStaggerMs;
     maxTime = Math.max(maxTime, duration + delay);
     activeMorphs.push(morphElementText(el, originalText, { durationMs: duration, delayMs: delay }));
   });
@@ -859,7 +884,7 @@ export function startAyaDance(engine: CosmicCanvasEngine): void {
   if (now < engine.world.ayaEasterEggCooldownUntil) {
     return;
   }
-  engine.world.ayaEasterEggCooldownUntil = now + AYA_DANCE_COOLDOWN_MS;
+  engine.world.ayaEasterEggCooldownUntil = now + AYA_CONFIG.timing.danceCooldownMs;
 
   if (ayaRevertTimer) {
     clearTimeout(ayaRevertTimer);
@@ -940,10 +965,10 @@ export function restoreAyaPageUI(engine: CosmicCanvasEngine): void {
 
     if (engine.world.logoElements.length > 0) {
       const elements = engine.world.logoElements;
-      restorePageExplodeElements(elements, REASSEMBLE_MS);
+      restorePageExplodeElements(elements, AYA_CONFIG.timing.reassembleMs);
       setTimeout(() => {
         clearPageExplodeInlineStyles(elements);
-      }, REASSEMBLE_MS + STAGGER_MAX_MS + 200);
+      }, AYA_CONFIG.timing.reassembleMs + AYA_CONFIG.timing.staggerMaxMs + 200);
     }
 
     const morphTotalMs = showAyaMessage(engine);
@@ -954,7 +979,7 @@ export function restoreAyaPageUI(engine: CosmicCanvasEngine): void {
     ayaRevertTimer = setTimeout(() => {
       ayaRevertTimer = null;
       revertAyaMessage(engine);
-    }, morphTotalMs + MESSAGE_HOLD_MS);
+    }, morphTotalMs + AYA_CONFIG.timing.messageHoldMs);
   } catch (e) {
     console.warn('[AyaDance] Failed page UI restore:', e);
   }
@@ -999,7 +1024,7 @@ export function endAyaDance(engine: CosmicCanvasEngine): void {
 
     engine.world.logoElements = [];
     engine.world.logoOrigPositions = [];
-  }, REASSEMBLE_MS + STAGGER_MAX_MS + 400);
+  }, AYA_CONFIG.timing.reassembleMs + AYA_CONFIG.timing.staggerMaxMs + 400);
 }
 
 export function onAyaKeyDown(engine: CosmicCanvasEngine, event: KeyboardEvent): void {
@@ -1024,13 +1049,13 @@ export function onAyaKeyDown(engine: CosmicCanvasEngine, event: KeyboardEvent): 
   }
 
   const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  if (now - lastKeyTime > KEY_TIMEOUT_MS) {
+  if (now - lastKeyTime > AYA_CONFIG.timing.keyTimeoutMs) {
     keyBuffer = '';
   }
   lastKeyTime = now;
 
-  const keywords = ['snowman'];
-  const maxLen = 7;
+  const keywords = AYA_CONFIG.triggerKeywords;
+  const maxLen = Math.max(...keywords.map((keyword) => keyword.length));
   keyBuffer = (keyBuffer + key.toLowerCase()).slice(-maxLen);
   
   const matched = keywords.find(keyword => keyBuffer.endsWith(keyword));
@@ -1041,29 +1066,70 @@ export function onAyaKeyDown(engine: CosmicCanvasEngine, event: KeyboardEvent): 
 }
 
 export function spawnHayatiLife(engine: CosmicCanvasEngine, clickX: number, clickY: number): void {
+  // Throttle to at most one spawn every 500ms so spam-clicking "Hayati" doesn't
+  // flood the particle ecosystem beyond what the FPS governor can compensate for.
+  const now = Date.now();
+  const lastSpawn = (engine.world as any).lastHayatiSpawn as number | undefined;
+  if (lastSpawn !== undefined && now - lastSpawn < 500) {
+    return;
+  }
+  (engine.world as any).lastHayatiSpawn = now;
+
+  const maxParticles = engine.world.performanceProfile?.maxParticles ?? 145;
+  const spawnTotal = 24; // 12 hearts + 12 stars per click
+  const heartBudget = 100;
+
+  // Count current hearts and do a single-scan budget + cull pass so we never
+  // iterate the array more than once.
+  let heartCount = 0;
+  let culledHearts = 0;
+  const heartCullTarget = 8;
+  for (const element of engine.world.particles) {
+    const p = element;
+    if (p.isHeart) {
+      heartCount++;
+      if (heartCount > heartBudget && culledHearts < heartCullTarget && !p.isDying) {
+        p.isDying = true;
+        culledHearts++;
+      }
+    }
+  }
+
+  // If we're still over the budget despite culling, mark more hearts as dying.
+  if (heartCount - culledHearts > heartBudget) {
+    const stillExcess = heartCount - culledHearts - heartBudget;
+    let dying = 0;
+    for (let i = 0; i < engine.world.particles.length && dying < stillExcess; i++) {
+      const p = engine.world.particles[i];
+      if (p.isHeart && !p.isDying) {
+        p.isDying = true;
+        dying++;
+      }
+    }
+    culledHearts += dying;
+  }
+
+  // Kill oldest non-heart, non-dying stars to make room for the new batch so
+  // the user always sees a visible burst when clicking Hayati.
+  const roomNeeded = Math.max(0, (engine.world.particles.length + spawnTotal) - maxParticles);
+  if (roomNeeded > 0) {
+    let culled = 0;
+    for (let i = 0; i < engine.world.particles.length && culled < roomNeeded; i++) {
+      const p = engine.world.particles[i];
+      if (!p.isHeart && !p.isDying && !p.formationActive && p.orbitAngle === undefined) {
+        p.isDying = true;
+        culled++;
+      }
+    }
+  }
+
   const pinkColors = [
     'rgba(255, 100, 180, ',
     'rgba(255, 140, 200, ',
     'rgba(255, 120, 160, '
   ];
 
-  // Count current heart particles to cap them and avoid performance degradation
-  const currentHearts = engine.world.particles.filter(p => p.isHeart);
-  const MAX_HEARTS = 45;
-  if (currentHearts.length + 15 > MAX_HEARTS) {
-    const excess = (currentHearts.length + 15) - MAX_HEARTS;
-    let marked = 0;
-    for (let i = 0; i < engine.world.particles.length && marked < excess; i++) {
-      const p = engine.world.particles[i];
-      if (p.isHeart && !p.isDying) {
-        p.isDying = true;
-        marked++;
-      }
-    }
-  }
-
-  // Spawn 15 stars and 15 hearts (30 total particles that behave exactly like stars)
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < spawnTotal; i++) {
     const angle = Math.random() * Math.PI * 2;
     const speed = Math.random() * 5.0 + 2.5;
     const baseRadius = Math.random() * 2.2 + 1.8;

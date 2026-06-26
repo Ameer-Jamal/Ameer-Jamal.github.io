@@ -18,7 +18,7 @@ import {
 import type { CosmicCanvasEngine } from './cosmic-canvas-engine';
 import { getMaxNurseryStars, getMaxParticles, getScaledConnectionDistance } from './cosmic-world';
 
-import { isSandboxPowerChannelActive, isMouseGravityActive, usesDefaultMouseGravity, transitionTo, triggerRandomStopAction, blastParticlesAway } from './state-machine';
+import { isSandboxPowerChannelActive, isMouseGravityActive, isMouseGravityPaused, usesDefaultMouseGravity, transitionTo, triggerRandomStopAction, blastParticlesAway } from './state-machine';
 import { spawnStellarBirth, spawnNurseryStar, spawnStardustPuff, spawnMiniSupernova, isIntenseParticleMesh, findRandomNearbyParticle } from './particle-system';
 import { drawMiniChargeArc, spawnEasterEggConstellation, drawEasterEggs } from './effects';
 import { drawGalaxy, updateAndDrawComets, getLensedCoords, updateUIAnchors } from './background-layers';
@@ -109,6 +109,40 @@ export function draw(engine: CosmicCanvasEngine): void {
     if (engine.world.mouseGravityPauseTimer > 0) {
       engine.world.mouseGravityPauseTimer--;
     }
+
+    // Break out of a leftover permanent AYA_FORMATION lock (see EXPLODING
+    // handler below). If the dance is over but we're still stuck in
+    // formation, dissolve it and hand control back to the user.
+    if (
+      engine.world.state === 'AYA_FORMATION' &&
+      !engine.world.isAyaDanceActive &&
+      engine.world.stateTimer > 10000
+    ) {
+      for (const p of engine.world.particles) {
+        p.formationActive = false;
+        p.formationTx = undefined;
+        p.formationTy = undefined;
+      }
+      transitionTo(engine, 'DRIFT');
+    }
+
+    // If the cursor is active (was moved / clicked in this session) we
+    // should be swarming around its last known position.  `mouse.active`
+    // alone is enough — it means the pointer has been inside the viewport
+    // at some point and no genuine leave cleared it.  This covers cases
+    // where the engine landed back in DRIFT (e.g. after an explosion or the
+    // Aya easter egg) while the cursor is still physically inside the
+    // viewport and stationary, including keyboard-triggered Aya where no
+    // recent pointermove fired.
+    if (
+      engine.world.state === 'DRIFT' &&
+      engine.world.mouse.active &&
+      engine.world.mouse.x !== -1000 &&
+      isMouseGravityActive(engine)
+    ) {
+      transitionTo(engine, 'SWARM');
+    }
+
     if ((engine.world as any).ayaHeartbeatTimer > 0) {
       (engine.world as any).ayaHeartbeatTimer = Math.max(0, (engine.world as any).ayaHeartbeatTimer - frameDelta);
       try {
@@ -152,14 +186,10 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
     }
 
-    if (engine.world.state === 'SWARM') {
-      if (engine.world.activePower === 'DEFAULT' && !engine.world.isMouseDown && engine.world.mouse.active && engine.world.mouseMoving) {
-        if (Date.now() - engine.world.lastMoveTime > 220) {
-          triggerRandomStopAction(engine);
-          engine.world.mouseMoving = false;
-        }
-      }
-    } else if (engine.world.state === 'SINGULARITY') {
+    // SWARM now persists while the pointer is inside the window, even when the
+    // cursor is completely still. The only transition back to DRIFT happens when
+    // the pointer physically leaves the viewport (handled in input-controller).
+    if (engine.world.state === 'SINGULARITY') {
       engine.world.stateTimer -= frameDelta;
       if (engine.world.stateTimer <= 0) {
         transitionTo(engine, 'EXPLODING');
@@ -419,6 +449,10 @@ export function draw(engine: CosmicCanvasEngine): void {
         engine.world.blackoutAlpha = Math.max(0, engine.world.blackoutAlpha - fadeStep);
       }
       if (engine.world.stateTimer <= 0 && engine.world.shockwaves.length === 0) {
+        // Always resume to SWARM or DRIFT based on mouse state.  Do NOT
+        // transition into the infinite AYA_FORMATION hold — that permanently
+        // locks particles in formation and makes them appear frozen on the
+        // Aya page after any click.
         const resumeSwarm = engine.world.mouseMoving && isMouseGravityActive(engine);
         transitionTo(engine, resumeSwarm ? 'SWARM' : 'DRIFT');
       }
@@ -891,6 +925,175 @@ export function draw(engine: CosmicCanvasEngine): void {
       engine.world.paintHoldFrame = 0;
     }
 
+    // --- FRAGMENT (ASTEROID) PHYSICS ---
+    // Apply gravity wells, wormholes, chrono wells, and mouse pull to
+    // planet fragments so they drift and behave like dynamic objects instead
+    // of sitting still.
+    for (const frag of engine.world.sandboxPlanets) {
+      if (frag.isDying || !frag.isFragment || !frag.vx || !frag.vy) continue;
+
+      // 1. Sandbox black hole gravity
+      for (const sbh of engine.world.sandboxBlackholes) {
+        if (sbh.isDying) continue;
+        const dx = sbh.x - frag.x;
+        const dy = sbh.y - frag.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const pullRadius = 280 + (engine.world.isMouseDown ? 120 : 0);
+        if (dist < pullRadius) {
+          const force = (pullRadius - dist) / pullRadius * 0.35;
+          frag.vx += (dx / dist) * force;
+          frag.vy += (dy / dist) * force;
+          frag.vx += (-dy / dist) * force * 0.25;
+          frag.vy += (dx / dist) * force * 0.25;
+        }
+      }
+
+      // 2. Sandbox chrono well slow-down
+      for (const cw of engine.world.sandboxChronoWells) {
+        if (cw.isDying) continue;
+        const dx = cw.x - frag.x;
+        const dy = cw.y - frag.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist < 180) {
+          const depth = 1 - dist / 180;
+          frag.vx *= 0.65 - depth * 0.3;
+          frag.vy *= 0.65 - depth * 0.3;
+        }
+      }
+
+      // 3. Wormhole teleport pull
+      for (const wh of engine.world.wormholes) {
+        if (wh.type !== 'ENTRY') continue;
+        const dx = wh.x - frag.x;
+        const dy = wh.y - frag.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist < 80) {
+          const force = (80 - dist) / 80 * 2.2;
+          frag.vx += (dx / dist) * force;
+          frag.vy += (dy / dist) * force;
+        }
+      }
+
+      // 4. Mouse swarm gravity — fragments follow the cursor like stars
+      if (
+        !isMouseGravityPaused(engine) &&
+        engine.world.mouse.active &&
+        engine.world.mouse.x !== -1000 &&
+        (engine.world.state === 'SWARM' || engine.world.state === 'DRIFT')
+      ) {
+        const dx = engine.world.mouse.x - frag.x;
+        const dy = engine.world.mouse.y - frag.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist < COSMIC_CONSTANTS.MOUSE_ATTRACT_DISTANCE) {
+          const pullStrength = (COSMIC_CONSTANTS.MOUSE_ATTRACT_DISTANCE - dist) / COSMIC_CONSTANTS.MOUSE_ATTRACT_DISTANCE;
+          frag.vx += (dx / dist) * pullStrength * 0.35;
+          frag.vy += (dy / dist) * pullStrength * 0.35;
+        }
+      }
+
+      // 5. Background black hole gravity
+      for (const bh of engine.world.backgroundBlackholes) {
+        const dx = bh.x - frag.x;
+        const dy = bh.y - frag.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist < 180) {
+          const force = (180 - dist) / 180 * 0.25;
+          frag.vx += (dx / dist) * force;
+          frag.vy += (dy / dist) * force;
+        }
+      }
+
+      // 6. Fragment-fragment avoidance (don't stack on each other)
+      for (const other of engine.world.sandboxPlanets) {
+        if (other === frag || other.isDying || !other.isFragment) continue;
+        const dx = frag.x - other.x;
+        const dy = frag.y - other.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const minDist = frag.radius + other.radius + 8;
+        if (dist < minDist && dist > 0) {
+          const push = (minDist - dist) / minDist * 0.6;
+          frag.vx += (dx / dist) * push;
+          frag.vy += (dy / dist) * push;
+        }
+      }
+
+      // 7. Nova strike shockwave blasts — push fragments away from explosions
+      for (const s of engine.world.shockwaves) {
+        const dx = frag.x - s.x;
+        const dy = frag.y - s.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < s.radius && dist > s.radius - 80) {
+          const force = (1 - dist / s.maxRadius) * 6.5;
+          const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.7;
+          frag.vx += Math.cos(angle) * force;
+          frag.vy += Math.sin(angle) * force;
+        }
+      }
+
+      // 8. Repeller anti-gravity — push fragments away from cursor
+      if (
+        engine.world.activePower === 'REPELLER' &&
+        isSandboxPowerChannelActive(engine) &&
+        engine.world.mouse.active &&
+        engine.world.mouse.x !== -1000
+      ) {
+        const dx = frag.x - engine.world.mouse.x;
+        const dy = frag.y - engine.world.mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const fieldRadius = 220;
+        if (dist < fieldRadius) {
+          const force = (fieldRadius - dist) / fieldRadius;
+          frag.vx += (dx / dist) * force * 1.5;
+          frag.vy += (dy / dist) * force * 1.5;
+        }
+      }
+
+      // 9. Nebular wind — blow fragments with the wind current
+      if (
+        engine.world.activePower === 'NEBULAR_WIND' &&
+        isSandboxPowerChannelActive(engine) &&
+        engine.world.mouse.active &&
+        engine.world.mouse.x !== -1000
+      ) {
+        const dx = frag.x - engine.world.mouse.x;
+        const dy = frag.y - engine.world.mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist < 280) {
+          const force = (280 - dist) / 280;
+          frag.vx += engine.world.mouseVelocity.x * force * 0.3;
+          frag.vy += engine.world.mouseVelocity.y * force * 0.3;
+        }
+      }
+
+      // 10. Time dilation cursor field — slow fragments near cursor
+      if (
+        engine.world.activePower === 'TIME_DILATION' &&
+        engine.world.mouse.active &&
+        engine.world.mouse.x !== -1000
+      ) {
+        const dx = engine.world.mouse.x - frag.x;
+        const dy = engine.world.mouse.y - frag.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist < 220) {
+          const depth = 1 - dist / 220;
+          frag.vx *= 0.55 - depth * 0.3;
+          frag.vy *= 0.55 - depth * 0.3;
+        }
+      }
+
+      // 11. Inversion nova — blast fragments away from cursor
+      if (engine.world.inversionNovaTimer > 0 && engine.world.mouse.x !== -1000) {
+        const dx = frag.x - engine.world.mouse.x;
+        const dy = frag.y - engine.world.mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist < 360) {
+          const force = (360 - dist) / 360;
+          frag.vx += (dx / dist) * force * 2.0;
+          frag.vy += (dy / dist) * force * 2.0;
+        }
+      }
+    }
+
     // 11. Update & Render main interactive constellation particles
     const pLength = engine.world.particles.length;
     const glowAmplitude = 0.15 + (Math.sin(Date.now() / 400) + 1.0) * 0.5 * 0.25;
@@ -1014,7 +1217,7 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
 
       // C. Evaluate Charging Pull Physics (Nova Strike only)
-      if (!inFormation && !inLoadingRing && engine.world.state === 'CHARGING' && usesDefaultMouseGravity(engine)) {
+      if ((!inFormation || engine.world.isSandboxOpen || (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message'))) && !inLoadingRing && engine.world.state === 'CHARGING' && usesDefaultMouseGravity(engine)) {
         const dx = engine.world.mouse.x - p.x;
         const dy = engine.world.mouse.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -1039,7 +1242,7 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
 
       // D. Evaluate Expanding Shockwave Physics
-      if (!inFormation && !inLoadingRing) {
+      if ((!inFormation || engine.world.activePower !== 'DEFAULT' || engine.world.isSandboxOpen || (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message'))) && !inLoadingRing) {
       for (const s of engine.world.shockwaves) {
         const dx = p.x - s.x;
         const dy = p.y - s.y;
@@ -1061,7 +1264,7 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
 
       // D2. Sandbox black hole + wormhole + Chrono Well + Planet world physics (persistent until CLEAR)
-      if (!inFormation && !inLoadingRing) {
+      if ((!inFormation || engine.world.activePower !== 'DEFAULT' || engine.world.isSandboxOpen || (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message'))) && !inLoadingRing) {
       for (const sbh of engine.world.sandboxBlackholes) {
         applySandboxBlackholeForces(engine, p, sbh);
       }
@@ -1098,8 +1301,8 @@ export function draw(engine: CosmicCanvasEngine): void {
       }
 
       // Aya Easter Egg Interactive Gravity: let the user interactively influence the particles
-      // during the moon dance/star formation before the final explosion.
-      if (engine.world.isAyaDanceActive && engine.world.mouse.active && engine.world.mouse.x !== -1000) {
+      // during the moon dance/star formation and during the long Aya-message formation hold.
+      if ((engine.world.isAyaDanceActive || engine.world.state === 'AYA_FORMATION') && engine.world.mouse.active && engine.world.mouse.x !== -1000) {
         const dx = engine.world.mouse.x - p.x;
         const dy = engine.world.mouse.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;

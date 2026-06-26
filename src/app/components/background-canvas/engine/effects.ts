@@ -6,7 +6,7 @@ import {
   upgradeTier
 } from '../../../utils/performance-profile';
 import { CONSTELLATION_TEMPLATES } from '../models/constellation-templates';
-import { ILOVEYOU_CONSTELLATION } from '../models/aya-constellation';
+import { ILOVEYOU_CONSTELLATION, AYA_CONSTELLATION } from '../models/aya-constellation';
 import { COSMIC_CONSTANTS } from '../models/cosmic.constants';
 import {
   BackgroundGalaxy,
@@ -67,6 +67,24 @@ export function spawnILoveYouMessage(
     alpha: 1,
     points: ILOVEYOU_CONSTELLATION.points,
     connections: ILOVEYOU_CONSTELLATION.connections,
+    fadeRate: ILOVEYOU_HOLD_FADE,
+    palette: 'pink'
+  });
+}
+
+export function spawnAyaConstellation(
+  engine: CosmicCanvasEngine,
+  x: number,
+  y: number,
+  scale: number
+): void {
+  engine.world.easterEggs.push({
+    x,
+    y,
+    scale,
+    alpha: 1.1,
+    points: AYA_CONSTELLATION.points,
+    connections: AYA_CONSTELLATION.connections,
     fadeRate: ILOVEYOU_HOLD_FADE,
     palette: 'pink'
   });

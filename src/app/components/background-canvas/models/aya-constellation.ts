@@ -100,6 +100,33 @@ export const ILOVEYOU_CONSTELLATION: ConstellationTemplate = {
   ]
 };
 
+export const AYA_CONSTELLATION: ConstellationTemplate = {
+  points: [
+    // First A (0 - 4)
+    { x: -0.72, y: -0.42 },
+    { x: -0.98, y: 0.42 },
+    { x: -0.46, y: 0.42 },
+    { x: -0.8552, y: 0.08 },
+    { x: -0.5848, y: 0.08 },
+    // Y (5 - 8)
+    { x: -0.24, y: -0.42 },
+    { x: 0.24, y: -0.42 },
+    { x: 0, y: -0.02 },
+    { x: 0, y: 0.42 },
+    // Second A (9 - 13)
+    { x: 0.72, y: -0.42 },
+    { x: 0.46, y: 0.42 },
+    { x: 0.98, y: 0.42 },
+    { x: 0.5848, y: 0.08 },
+    { x: 0.8552, y: 0.08 }
+  ],
+  connections: [
+    [0, 1], [0, 2], [3, 4], // A
+    [5, 7], [6, 7], [7, 8], // Y
+    [9, 10], [9, 11], [12, 13] // A
+  ]
+};
+
 export function getWorldLetterTargets(
   centerX: number,
   centerY: number,

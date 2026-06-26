@@ -37,7 +37,7 @@ const modules = {
   'fps-governor.ts': ['stopAnimationLoop', 'resetFpsGovernorStreaks', 'applyPerformanceTier', 'tickFpsGovernor'],
   'input-controller.ts': [
     'updatePointerCoords', 'clearPointerState', 'clearTouchPointerStateIfNeeded',
-    'onPointerMove', 'onPointerLeave', 'onPointerCancel', 'onPointerDown', 'onPointerUp',
+    'onPointerEnter', 'onPointerMove', 'onPointerLeave', 'onPointerCancel', 'onPointerDown', 'onPointerUp',
     'onMouseMove', 'onMouseLeave', 'onMouseDown', 'onMouseUp', 'onLogoBlackholeTrigger'
   ],
   'state-machine.ts': [
@@ -177,6 +177,7 @@ import {
   onMouseUp,
   onPointerCancel,
   onPointerDown,
+  onPointerEnter,
   onPointerLeave,
   onPointerMove,
   onPointerUp
@@ -242,6 +243,7 @@ export class CosmicCanvasEngine {
   public selectPower(power: MousePower): void { selectPower(this, power); }
   public clearSandboxElements(): void { clearSandboxElements(this); }
 
+  public onPointerEnter(event: PointerEvent): void { onPointerEnter(this, event); }
   public onPointerMove(event: PointerEvent): void { onPointerMove(this, event); }
   public onPointerLeave(event: PointerEvent): void { onPointerLeave(this, event); }
   public onPointerCancel(event: PointerEvent): void { onPointerCancel(this, event); }

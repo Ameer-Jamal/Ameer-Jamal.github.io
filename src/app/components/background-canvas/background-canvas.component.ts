@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CosmicCanvasEngine, TOOLS_LIST } from './engine/cosmic-canvas-engine';
 import { MousePower } from './models/cosmic.types';
+import { startAyaDance } from './engine/aya-easter-egg';
 
 @Component({
   selector: 'app-background-canvas',
@@ -63,10 +64,21 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.ngZone.runOutsideAngular(() => {
       this.engine.init();
     });
+
+    (window as any).__triggerAyaEasterEgg = () => {
+      if (this.engine) {
+        this.ngZone.runOutsideAngular(() => {
+          startAyaDance(this.engine);
+        });
+      }
+    };
   }
 
   ngOnDestroy(): void {
     this.engine?.destroy();
+    if (typeof window !== 'undefined') {
+      delete (window as any).__triggerAyaEasterEgg;
+    }
   }
 
   @HostListener('document:visibilitychange')
@@ -86,6 +98,11 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   @HostListener('window:resize')
   onResize(): void {
     this.engine?.handleResize();
+  }
+
+  @HostListener('window:pointerenter', ['$event'])
+  onPointerEnter(event: PointerEvent): void {
+    this.engine?.onPointerEnter(event);
   }
 
   @HostListener('window:pointermove', ['$event'])

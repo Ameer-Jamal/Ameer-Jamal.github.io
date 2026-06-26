@@ -31,8 +31,8 @@ export function updatePointerCoords(engine: CosmicCanvasEngine, clientX: number,
   }
 
 
-export function clearPointerState(engine: CosmicCanvasEngine): void {
-    if (engine.world.activePower === 'DEFAULT' && !engine.world.isMouseDown && (engine.world.state === 'SWARM' || engine.world.state === 'CHARGING')) {
+export function clearPointerState(engine: CosmicCanvasEngine, skipRandomStop = false): void {
+    if (!skipRandomStop && engine.world.activePower === 'DEFAULT' && !engine.world.isMouseDown && (engine.world.state === 'SWARM' || engine.world.state === 'CHARGING')) {
       triggerRandomStopAction(engine);
     }
     engine.world.mouse.active = false;
@@ -51,6 +51,17 @@ export function clearPointerState(engine: CosmicCanvasEngine): void {
     }
   }
 
+function isPointerInsideViewport(event: PointerEvent): boolean {
+    if (typeof window === 'undefined') return false;
+    const margin = 2;
+    return (
+      event.clientX >= -margin &&
+      event.clientY >= -margin &&
+      event.clientX <= window.innerWidth + margin &&
+      event.clientY <= window.innerHeight + margin
+    );
+  }
+
 
 export function clearTouchPointerStateIfNeeded(engine: CosmicCanvasEngine, event: PointerEvent): void {
     if (event.pointerType === 'touch') {
@@ -58,7 +69,17 @@ export function clearTouchPointerStateIfNeeded(engine: CosmicCanvasEngine, event
     }
   }
 
+export function onPointerEnter(engine: CosmicCanvasEngine, event: PointerEvent): void {
+    engine.world.pointerInsideWindow = true;
+    if (event.pointerType === 'mouse') {
+      updatePointerCoords(engine, event.clientX, event.clientY);
+      engine.world.mouse.active = true;
+    }
+  }
+
 export function onPointerMove(engine: CosmicCanvasEngine, event: PointerEvent): void {
+    engine.world.pointerInsideWindow = true;
+
     const prevX = engine.world.mouse.x;
     const prevY = engine.world.mouse.y;
 
@@ -116,10 +137,21 @@ export function onPointerMove(engine: CosmicCanvasEngine, event: PointerEvent): 
   }
 
 export function onPointerLeave(engine: CosmicCanvasEngine, event: PointerEvent): void {
-    if (event.pointerType !== 'mouse') {
+    engine.world.pointerInsideWindow = false;
+
+    // Some touchpads/browsers fire spurious pointerleave events while the cursor
+    // is still physically inside the window. Ignore those so the swarm stays alive.
+    if (isPointerInsideViewport(event)) {
       return;
     }
-    clearPointerState(engine);
+
+    if (event.pointerType !== 'mouse') {
+      clearTouchPointerStateIfNeeded(engine, event);
+      return;
+    }
+
+    transitionTo(engine, 'DRIFT');
+    clearPointerState(engine, true);
   }
 
 export function onPointerCancel(engine: CosmicCanvasEngine, event: PointerEvent): void {
@@ -131,16 +163,20 @@ export function onPointerCancel(engine: CosmicCanvasEngine, event: PointerEvent)
   }
 
 export function onPointerDown(engine: CosmicCanvasEngine, event: PointerEvent): void {
-    if (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message')) {
+    if (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message') && engine.world.activePower === 'DEFAULT') {
       updatePointerCoords(engine, event.clientX, event.clientY);
       const customSpawn = (window as any).__ayaSpawnHearts;
       if (customSpawn) {
         customSpawn(engine.world.mouse.x, engine.world.mouse.y);
       }
-      return;
     }
 
-    if (engine.world.state === 'SINGULARITY' || engine.world.state === 'MOON_DANCE' || engine.world.state === 'AYA_FORMATION' || engine.world.state === 'LOADING' || engine.world.isAyaDanceActive) {
+    if (
+      engine.world.state === 'SINGULARITY' ||
+      engine.world.state === 'MOON_DANCE' ||
+      engine.world.state === 'AYA_FORMATION' ||
+      engine.world.state === 'LOADING'
+    ) {
       return;
     }
 
@@ -165,6 +201,7 @@ export function onPointerDown(engine: CosmicCanvasEngine, event: PointerEvent): 
     }
 
     updatePointerCoords(engine, event.clientX, event.clientY);
+    engine.world.pointerInsideWindow = true;
     engine.world.mouse.active = true;
     engine.world.isMouseDown = true;
     engine.world.chargeTime = 0;
@@ -220,7 +257,12 @@ export function onPointerUp(engine: CosmicCanvasEngine, event: PointerEvent): vo
     }
     engine.world.isMouseDown = false;
 
-    if (engine.world.state === 'SINGULARITY' || engine.world.state === 'MOON_DANCE' || engine.world.state === 'AYA_FORMATION' || engine.world.state === 'LOADING' || engine.world.isAyaDanceActive) {
+    if (
+      engine.world.state === 'SINGULARITY' ||
+      engine.world.state === 'MOON_DANCE' ||
+      engine.world.state === 'AYA_FORMATION' ||
+      engine.world.state === 'LOADING'
+    ) {
       clearTouchPointerStateIfNeeded(engine, event);
       return;
     }

@@ -66,6 +66,7 @@ export interface CosmicWorld {
   nurseryStarCount: number;
   paintHoldFrame: number;
   mouse: MouseState;
+  pointerInsideWindow: boolean;
   mouseMoving: boolean;
   lastMoveTime: number;
   isMouseDown: boolean;
@@ -150,6 +151,7 @@ export function createCosmicWorld(canvas: HTMLCanvasElement, ctx: CanvasRenderin
     nurseryStarCount: 0,
     paintHoldFrame: 0,
     mouse: { x: -1000, y: -1000, active: false },
+    pointerInsideWindow: false,
     mouseMoving: false,
     lastMoveTime: 0,
     isMouseDown: false,

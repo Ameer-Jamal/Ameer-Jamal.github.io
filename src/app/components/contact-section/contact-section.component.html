@@ -1,27 +1,115 @@
 <h2 class="major">REACH OUT</h2>
-<form action="https://formspree.io/f/xnqypvyy" method="POST" id="contactForm">
-  <div class="fields">
+
+<!-- The detailed vector spaceship model that fades in during the morph transition -->
+<div class="spaceship-container">
+  <div class="spaceship-wrapper">
+    <svg class="spaceship-model" viewBox="0 0 100 100">
+    <defs>
+      <!-- Fusion core cockpit glow -->
+      <radialGradient id="cockpitGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#00f0ff" />
+        <stop offset="60%" stop-color="#0072ff" />
+        <stop offset="100%" stop-color="#011627" />
+      </radialGradient>
+      <!-- Metallic wing panel gradient -->
+      <linearGradient id="wingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#78909c" />
+        <stop offset="50%" stop-color="#455a64" />
+        <stop offset="100%" stop-color="#263238" />
+      </linearGradient>
+      <!-- Fuselage metallic shine -->
+      <linearGradient id="fuselageGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#cfd8dc" />
+        <stop offset="35%" stop-color="#eceff1" />
+        <stop offset="70%" stop-color="#b0bec5" />
+        <stop offset="100%" stop-color="#78909c" />
+      </linearGradient>
+      <!-- High-tech wing warning stripes -->
+      <linearGradient id="stripeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#ff3d00" />
+        <stop offset="100%" stop-color="#d50000" />
+      </linearGradient>
+      <!-- Main engine flame gradient -->
+      <linearGradient id="mainFlameGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#ffffff" />
+        <stop offset="25%" stop-color="#00f0ff" />
+        <stop offset="55%" stop-color="#0072ff" stop-opacity="0.85" />
+        <stop offset="100%" stop-color="#001535" stop-opacity="0" />
+      </linearGradient>
+      <!-- Inner hot flame core gradient -->
+      <linearGradient id="coreFlameGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#ffffff" />
+        <stop offset="45%" stop-color="#00f0ff" stop-opacity="0.9" />
+        <stop offset="100%" stop-color="#0072ff" stop-opacity="0" />
+      </linearGradient>
+    </defs>
+
+    <!-- Left Wing -->
+    <path d="M 50 20 L 10 85 L 25 90 L 50 78 Z" fill="url(#wingGrad)" stroke="#1c313a" stroke-width="0.7" />
+    <!-- Right Wing -->
+    <path d="M 50 20 L 90 85 L 75 90 L 50 78 Z" fill="url(#wingGrad)" stroke="#1c313a" stroke-width="0.7" />
+    
+    <!-- Left Wing Stripe Details -->
+    <path d="M 42 45 L 22 78 L 26 80 L 45 50 Z" fill="url(#stripeGrad)" opacity="0.85" />
+    <!-- Right Wing Stripe Details -->
+    <path d="M 58 45 L 78 78 L 74 80 L 55 50 Z" fill="url(#stripeGrad)" opacity="0.85" />
+
+    <!-- Center Fuselage Body -->
+    <path d="M 50 5 C 56 5, 60 25, 60 72 C 60 78, 40 78, 40 72 C 40 25, 44 5, 50 5 Z" fill="url(#fuselageGrad)" stroke="#263238" stroke-width="0.8" />
+    
+    <!-- Cockpit Canopy Glass -->
+    <path d="M 50 24 C 54 24, 56 32, 56 46 C 56 54, 44 54, 44 46 C 44 32, 46 24, 50 24 Z" fill="url(#cockpitGlow)" filter="drop-shadow(0 0 3px #00f0ff)" />
+    <!-- Windshield Reflection Highlight -->
+    <path d="M 50 26 C 52 26, 54 31, 54 40 C 54 44, 46 44, 46 40 C 46 31, 48 26, 50 26 Z" fill="#ffffff" opacity="0.35" />
+
+    <!-- Left Engine Flame -->
+    <path class="svg-flame left-flame" d="M 43 78 Q 42 95 45.5 112 Q 49 95 48 78 Z" fill="url(#mainFlameGrad)" />
+    <path class="svg-flame-core left-flame-core" d="M 44 78 Q 43 88 45.5 96 Q 48 88 47 78 Z" fill="url(#coreFlameGrad)" />
+
+    <!-- Right Engine Flame -->
+    <path class="svg-flame right-flame" d="M 52 78 Q 51 95 54.5 112 Q 58 95 57 78 Z" fill="url(#mainFlameGrad)" />
+    <path class="svg-flame-core right-flame-core" d="M 53 78 Q 52 88 54.5 96 Q 57 88 56 78 Z" fill="url(#coreFlameGrad)" />
+
+    <!-- Twin Thruster Engine Pipes -->
+    <rect x="43" y="73" width="5" height="6" fill="#212121" rx="1.5" />
+    <rect x="52" y="73" width="5" height="6" fill="#212121" rx="1.5" />
+
+    <!-- Glow Wingtip Navigation Lights (Aviation Standard) -->
+    <circle cx="10" cy="85" r="3.5" fill="#00e676" filter="drop-shadow(0 0 4px #00e676)" />
+    <circle cx="90" cy="85" r="3.5" fill="#ff1744" filter="drop-shadow(0 0 4px #ff1744)" />
+  </svg>
+  </div>
+</div>
+
+
+<form id="contactForm" (submit)="handleSubmit($event)">
+  <div class="fields" [class.is-dimmed]="formState === 'submitting' || formState === 'success'">
     <div class="field half">
       <label for="name">Name</label>
-      <input type="text" name="name" id="name" />
+      <input type="text" name="name" id="name" [disabled]="formState === 'submitting' || formState === 'success'" />
     </div>
     <div class="field half">
       <label for="email">Email</label>
-      <input type="email" name="email">
+      <input type="email" name="email" id="email" [disabled]="formState === 'submitting' || formState === 'success'" />
     </div>
     <div class="field">
       <label for="message">Message</label>
-      <textarea name="message" id="message" rows="4"></textarea>
+      <textarea name="message" id="message" rows="4" [disabled]="formState === 'submitting' || formState === 'success'"></textarea>
     </div>
   </div>
-  <ul class="actions">
-    <li><input type="button" onclick="submitAndResetForm()" value="Send Message" class="primary" /></li>
-    <li><input type="reset" value="Reset" /></li>
+
+  @if (formState === 'error') {
+    <p class="contact-error">{{ errorMessage }}</p>
+  }
+
+  <ul class="actions" [class.is-dimmed]="formState === 'submitting' || formState === 'success'">
+    <li><input type="button" (click)="submitAndResetForm()" value="Send Message" class="primary" [disabled]="formState === 'submitting' || formState === 'success'" /></li>
+    <li><input type="reset" value="Reset" [disabled]="formState === 'submitting' || formState === 'success'" /></li>
   </ul>
-  <ul class="icons">
-    <h2 class="">Socials</h2>
-    <li><a href="https://www.linkedin.com/in/ameer-jamal/" class="icon brands fa-linkedin "><span class="label">linkedin</span></a></li>
+  <ul class="icons" [class.is-dimmed]="formState === 'submitting' || formState === 'success'">
+    <h2>Socials</h2>
+    <li><a href="https://www.linkedin.com/in/ameer-jamal/" class="icon brands fa-linkedin"><span class="label">linkedin</span></a></li>
     <li><a href="https://github.com/Ameer-Jamal/" class="icon brands fa-github"><span class="label">GitHub</span></a></li>
-    <li><a href="#CV" class="icon brands" style="font-weight:800 ;">cv<span class="label">CV</span></a></li>
+    <li><a href="#CV" class="icon brands" style="font-weight:800;">cv<span class="label">CV</span></a></li>
   </ul>
 </form>

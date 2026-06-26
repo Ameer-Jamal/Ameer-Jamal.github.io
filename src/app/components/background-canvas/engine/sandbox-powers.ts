@@ -732,8 +732,12 @@ export function spawnSandboxPlanet(engine: CosmicCanvasEngine, x: number, y: num
     x,
     y,
     radius,
+    baseRadius: radius,
     mass,
     color: JSON.stringify(theme),
+    health: 20,
+    damageFlash: 0,
+    isFragment: false,
     isDying: false,
     deathTimer: 0
   });
@@ -743,6 +747,16 @@ export function spawnSandboxPlanet(engine: CosmicCanvasEngine, x: number, y: num
 
 export function shatterPlanet(engine: CosmicCanvasEngine, pl: SandboxPlanet): void {
   if (pl.isDying) return;
+
+  pl.health--;
+  pl.damageFlash = 6;
+
+  // Only destroy when health is fully depleted.
+  // A full planet has 20 health; fragments have 10.
+  if (pl.health > 0) {
+    return;
+  }
+
   pl.isDying = true;
   pl.deathTimer = 12; // quickly collapse parent representation
 
@@ -753,20 +767,27 @@ export function shatterPlanet(engine: CosmicCanvasEngine, pl: SandboxPlanet): vo
     theme = { sparkColor: 'rgba(0, 255, 140,' };
   }
 
-  const minRadiusForSplit = 18;
-  if (pl.radius > minRadiusForSplit) {
-    // Shatter into 2 or 3 smaller planet pieces!
-    const numFragments = pl.radius > 36 ? 3 : 2;
-    const fragmentRadius = pl.radius * 0.44;
-    const fragmentMass = fragmentRadius * fragmentRadius * 0.6;
-    
+  const minRadiusForSplit = 10;
+  if (pl.radius > minRadiusForSplit && !pl.isFragment) {
+    // Asteroids-like shatter: fragment count and size scale with planet radius.
+    const numFragments = Math.max(3, Math.min(8, Math.floor(pl.radius * 0.1)));
+    const fragmentRadius = pl.radius * 0.35;
+    const fragmentMass = fragmentRadius * fragmentRadius * 0.3;
+
     const baseAngle = Math.random() * Math.PI * 2;
     for (let i = 0; i < numFragments; i++) {
-      const angle = baseAngle + (Math.PI * 2 * i) / numFragments + (Math.random() - 0.5) * 0.15;
-      const speed = Math.random() * 2.2 + 2.0; // initial velocity
-      
-      const fx = pl.x + Math.cos(angle) * (pl.radius * 0.35);
-      const fy = pl.y + Math.sin(angle) * (pl.radius * 0.35);
+      const angle = baseAngle + (Math.PI * 2 * i) / numFragments + (Math.random() - 0.5) * 0.35;
+      const speed = 2.5 + Math.random() * 4.5;
+
+      const fx = pl.x + Math.cos(angle) * (pl.radius * 0.45);
+      const fy = pl.y + Math.sin(angle) * (pl.radius * 0.45);
+
+      // Pre-compute a fixed irregular polygon shape (6-9 vertices)
+      const vertCount = 6 + Math.floor(Math.random() * 4);
+      const vertices: number[] = [];
+      for (let v = 0; v < vertCount; v++) {
+        vertices.push(0.65 + Math.random() * 0.35);
+      }
 
       engine.world.sandboxPlanets.push({
         x: fx,
@@ -774,8 +795,15 @@ export function shatterPlanet(engine: CosmicCanvasEngine, pl: SandboxPlanet): vo
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         radius: fragmentRadius,
+        baseRadius: fragmentRadius,
         mass: fragmentMass,
-        color: pl.color, // inherit parent color theme!
+        color: '', // not used for fragments; shape is defined by vertices
+        health: 10,
+        damageFlash: 0,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.12,
+        vertices,
+        isFragment: true,
         isDying: false,
         deathTimer: 0
       });
@@ -1160,6 +1188,14 @@ export function updateAndDrawSandboxElements(engine: CosmicCanvasEngine, width: 
         pl.radius -= pl.radius / 10;
         if (pl.radius < 0.5) pl.radius = 0;
       } else {
+        // Decay damage flash counter
+        if (pl.damageFlash > 0) pl.damageFlash--;
+
+        // Spin fragments like asteroids
+        if (pl.isFragment && pl.rotation !== undefined && pl.rotationSpeed !== undefined) {
+          pl.rotation += pl.rotationSpeed;
+        }
+
         // Update velocity & position for planetary pieces
         if (pl.vx !== undefined && pl.vy !== undefined) {
           pl.x += pl.vx;
@@ -1205,30 +1241,98 @@ export function updateAndDrawSandboxElements(engine: CosmicCanvasEngine, width: 
       }
 
       // Draw planet atmosphere glow (with safe non-negative radii to prevent Canvas DOM Exceptions)
-      const rGlow0 = Math.max(0.1, radius - 4);
-      const rGlow1 = Math.max(0.1, radius + 12);
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(pl.x, pl.y, rGlow1, 0, Math.PI * 2);
-      const glowGrad = engine.world.ctx.createRadialGradient(pl.x, pl.y, rGlow0, pl.x, pl.y, rGlow1);
-      glowGrad.addColorStop(0, theme.glow);
-      glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      engine.world.ctx.fillStyle = glowGrad;
-      engine.world.ctx.fill();
+      // Asteroid fragments skip the glow and ring — they are bare rocky chunks.
+      if (!pl.isFragment) {
+        const rGlow0 = Math.max(0.1, radius - 4);
+        const rGlow1 = Math.max(0.1, radius + 12);
+        engine.world.ctx.beginPath();
+        engine.world.ctx.arc(pl.x, pl.y, rGlow1, 0, Math.PI * 2);
+        const glowGrad = engine.world.ctx.createRadialGradient(pl.x, pl.y, rGlow0, pl.x, pl.y, rGlow1);
+        glowGrad.addColorStop(0, theme.glow);
+        glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        engine.world.ctx.fillStyle = glowGrad;
+        engine.world.ctx.fill();
+      }
 
-      // Draw the planet body (with safe non-negative radii)
-      const rBody0 = Math.max(0.1, radius * 0.1);
-      const rBody1 = Math.max(0.1, radius);
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(pl.x, pl.y, rBody1, 0, Math.PI * 2);
-      const planetGrad = engine.world.ctx.createRadialGradient(pl.x - radius * 0.3, pl.y - radius * 0.3, rBody0, pl.x, pl.y, rBody1);
-      planetGrad.addColorStop(0, theme.inner);
-      planetGrad.addColorStop(0.65, theme.mid);
-      planetGrad.addColorStop(1.0, theme.outer);
-      engine.world.ctx.fillStyle = planetGrad;
-      engine.world.ctx.fill();
+      // Draw the body — spinning asteroid polygon for fragments,
+      // smooth radial-gradiant sphere for full planets.
+      if (pl.isFragment) {
+        const rBody1 = Math.max(0.1, radius);
+        const verts = pl.vertices;
+        const rot = pl.rotation ?? 0;
+        const vcount = verts ? verts.length : 6;
 
-      // Draw thin elegant ring system if it is sapphire or ruby theme
-      if (theme.name === 'sapphire' || theme.name === 'ruby') {
+        engine.world.ctx.beginPath();
+        for (let k = 0; k < vcount; k++) {
+          const a = (Math.PI * 2 * k) / vcount + rot;
+          const r = rBody1 * (verts ? verts[k] : (0.7 + 0.3 * Math.sin(k)));
+          const vx = pl.x + Math.cos(a) * r;
+          const vy = pl.y + Math.sin(a) * r;
+          if (k === 0) engine.world.ctx.moveTo(vx, vy);
+          else engine.world.ctx.lineTo(vx, vy);
+        }
+        engine.world.ctx.closePath();
+
+        // Rocky asteroid fill with a subtle radial gradient
+        const grad = engine.world.ctx.createRadialGradient(
+          pl.x - radius * 0.15, pl.y - radius * 0.15, radius * 0.05,
+          pl.x, pl.y, rBody1
+        );
+        grad.addColorStop(0, '#8a8a8a');
+        grad.addColorStop(0.45, '#5a5a5a');
+        grad.addColorStop(1, '#2a2a2a');
+        engine.world.ctx.fillStyle = grad;
+        engine.world.ctx.fill();
+
+        // Crisp rocky edge
+        engine.world.ctx.strokeStyle = '#1a1a1a';
+        engine.world.ctx.lineWidth = 1.8;
+        engine.world.ctx.stroke();
+
+        // Subtle highlight edge inside
+        engine.world.ctx.strokeStyle = 'rgba(200, 200, 200, 0.2)';
+        engine.world.ctx.lineWidth = 1.0;
+        engine.world.ctx.stroke();
+      } else {
+        const rBody0 = Math.max(0.1, radius * 0.1);
+        const rBody1 = Math.max(0.1, radius);
+        engine.world.ctx.beginPath();
+        engine.world.ctx.arc(pl.x, pl.y, rBody1, 0, Math.PI * 2);
+        const planetGrad = engine.world.ctx.createRadialGradient(pl.x - radius * 0.3, pl.y - radius * 0.3, rBody0, pl.x, pl.y, rBody1);
+        planetGrad.addColorStop(0, theme.inner);
+        planetGrad.addColorStop(0.65, theme.mid);
+        planetGrad.addColorStop(1.0, theme.outer);
+        engine.world.ctx.fillStyle = planetGrad;
+        engine.world.ctx.fill();
+      }
+
+      // Damage flash overlay — white pulse when hit but not shattered
+      if (!pl.isDying && pl.damageFlash > 0) {
+        engine.world.ctx.beginPath();
+        if (pl.isFragment) {
+          const rBody1 = Math.max(0.1, radius);
+          const verts = pl.vertices;
+          const rot = pl.rotation ?? 0;
+          const vcount = verts ? verts.length : 6;
+          for (let k = 0; k < vcount; k++) {
+            const a = (Math.PI * 2 * k) / vcount + rot;
+            const r = rBody1 * (verts ? verts[k] : 0.8);
+            const vx = pl.x + Math.cos(a) * r;
+            const vy = pl.y + Math.sin(a) * r;
+            if (k === 0) engine.world.ctx.moveTo(vx, vy);
+            else engine.world.ctx.lineTo(vx, vy);
+          }
+          engine.world.ctx.closePath();
+        } else {
+          engine.world.ctx.arc(pl.x, pl.y, Math.max(0.1, radius), 0, Math.PI * 2);
+        }
+        const flashAlpha = pl.damageFlash / 6 * 0.55;
+        engine.world.ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
+        engine.world.ctx.fill();
+      }
+
+      // Draw thin elegant ring system if it is sapphire or ruby theme (planet only, not fragment)
+      if (!pl.isFragment && (theme.name === 'sapphire' || theme.name === 'ruby')) {
         engine.world.ctx.save();
         engine.world.ctx.translate(pl.x, pl.y);
         engine.world.ctx.rotate(-Math.PI / 6);

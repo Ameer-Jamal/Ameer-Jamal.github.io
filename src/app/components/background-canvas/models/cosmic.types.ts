@@ -42,8 +42,15 @@ export interface SandboxPlanet {
   vx?: number;
   vy?: number;
   radius: number;
+  baseRadius: number;
   mass: number;
   color: string;
+  health: number;
+  damageFlash: number;
+  rotation?: number;
+  rotationSpeed?: number;
+  vertices?: number[];
+  isFragment?: boolean;
   isDying?: boolean;
   deathTimer?: number;
 }

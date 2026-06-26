@@ -22,6 +22,7 @@ import {
   onMouseUp,
   onPointerCancel,
   onPointerDown,
+  onPointerEnter,
   onPointerLeave,
   onPointerMove,
   onPointerUp
@@ -44,7 +45,10 @@ export class CosmicCanvasEngine {
     if (typeof window === 'undefined') return;
     this.world.performanceProfile = resolvePerformanceProfile();
     applyPerformanceTier(this, this.world.performanceProfile.tier, false);
+    resizeCanvas(this);
     initNebulas(this);
+    initStars(this);
+    initGalaxies(this);
     initParticles(this);
     if (!shouldSkipLoadingSequence()) {
       beginLoadingSequence(this);
@@ -95,6 +99,7 @@ export class CosmicCanvasEngine {
   public selectPower(power: MousePower): void { selectPower(this, power); }
   public clearSandboxElements(): void { clearSandboxElements(this); }
 
+  public onPointerEnter(event: PointerEvent): void { onPointerEnter(this, event); }
   public onPointerMove(event: PointerEvent): void { onPointerMove(this, event); }
   public onPointerLeave(event: PointerEvent): void { onPointerLeave(this, event); }
   public onPointerCancel(event: PointerEvent): void { onPointerCancel(this, event); }

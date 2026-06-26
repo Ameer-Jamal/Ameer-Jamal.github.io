@@ -1,0 +1,331 @@
+.paper-plane-scene {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  overflow: hidden;
+  animation: scene-in 0.35s ease forwards;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  animation: particle-burst 0.9s ease-out forwards;
+}
+
+.plane-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.portal-glow {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(79,195,247,0.3) 0%, rgba(79,195,247,0.1) 40%, transparent 70%);
+  animation: portal-pulse 1.2s ease-out forwards;
+}
+
+.plane-glow-ring {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px solid rgba(79, 195, 247, 0.2);
+  animation: ring-expand 0.8s ease-out 0.3s forwards;
+}
+
+.paper-plane {
+  width: 80px;
+  height: 80px;
+  color: #e8e8e8;
+  filter: drop-shadow(0 0 18px rgba(79, 195, 247, 0.5));
+  z-index: 2;
+  animation: plane-flight 2.4s linear forwards;
+  transform-origin: center center;
+}
+
+.success-label {
+  margin-top: 1rem;
+  font-size: 1.05rem;
+  letter-spacing: 0.32rem;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  opacity: 0;
+  animation: label-reveal 0.6s ease 0.25s forwards;
+  z-index: 2;
+}
+
+.contact-error {
+  color: #ff6b6b;
+  font-size: 0.82rem;
+  margin: 0 0 0.6rem;
+  letter-spacing: 0.04rem;
+  animation: shake 0.45s ease;
+}
+
+.is-dimmed {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+@keyframes scene-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes particle-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  60% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx), var(--ty)) scale(0);
+  }
+}
+
+@keyframes portal-pulse {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+@keyframes ring-expand {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2);
+  }
+}
+
+@keyframes plane-flight {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.08) rotate(-20deg);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.05) rotate(-2deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(300px, -520px) scale(0.01) rotate(42deg);
+  }
+}
+
+@keyframes label-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-5px); }
+  40%      { transform: translateX(5px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(3px); }
+}
+
+::ng-deep {
+  /*
+   * Smooth launch fade-out
+   * The contacts card background, border, and shadows fade out, making the modal
+   * invisible while its children (like the rocket container) remain fully visible.
+   */
+  #contact.is-morphing {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, backdrop-filter 0.15s ease !important;
+    pointer-events: none !important;
+    overflow: visible !important;
+  }
+
+  #contact.is-closing-launch {
+    opacity: 0 !important;
+    transform: translateY(-0.65rem) scale(0.985) !important;
+    transition: opacity 0.32s linear, transform 0.32s ease-out !important;
+  }
+
+  /* Hide close button on the article during morphing */
+  #contact.is-morphing .close {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.1s ease-out !important;
+  }
+
+  /* Fade out the contents of the contact section quickly */
+  #contact.is-morphing app-contact-section form,
+  #contact.is-morphing app-contact-section h2 {
+    opacity: 0 !important;
+    transition: opacity 0.15s ease-out !important;
+    pointer-events: none !important;
+  }
+
+  /* Fixed launch stage centered on the viewport */
+  .spaceship-container {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 99999;
+    transition: opacity 0.06s linear;
+  }
+
+  #contact.is-morphing .spaceship-container {
+    opacity: 1;
+  }
+
+  /* The ship itself: positioned for vertical launch */
+  .spaceship-wrapper {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    opacity: 0;
+    will-change: transform, opacity;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+  }
+
+  #contact.is-morphing.is-ship .spaceship-wrapper {
+    opacity: 1;
+    animation: spaceship-launch 4.5s linear forwards;
+  }
+
+  /* Enlarger and point rocket straight up */
+  .spaceship-model {
+    width: 130px;
+    height: 130px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 1;
+    overflow: visible;
+  }
+
+  /* Natively-scaled SVG engine flames */
+  .svg-flame {
+    filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.95));
+    will-change: transform, opacity;
+  }
+
+  .svg-flame-core {
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.9));
+    will-change: transform, opacity;
+  }
+
+  .left-flame {
+    transform-origin: 45.5px 78px;
+    animation: svg-flame-flicker-left 0.08s infinite alternate ease-in-out;
+  }
+
+  .right-flame {
+    transform-origin: 54.5px 78px;
+    animation: svg-flame-flicker-right 0.09s infinite alternate-reverse ease-in-out;
+  }
+
+  .left-flame-core {
+    transform-origin: 45.5px 78px;
+    animation: svg-flame-core-flicker-left 0.06s infinite alternate ease-in-out;
+  }
+
+  .right-flame-core {
+    transform-origin: 54.5px 78px;
+    animation: svg-flame-core-flicker-right 0.07s infinite alternate-reverse ease-in-out;
+  }
+
+  @keyframes svg-flame-flicker-left {
+    0% { transform: scaleY(0.85) scaleX(0.92); opacity: 0.8; }
+    100% { transform: scaleY(1.25) scaleX(1.08); opacity: 1; }
+  }
+
+  @keyframes svg-flame-flicker-right {
+    0% { transform: scaleY(0.9) scaleX(0.95); opacity: 0.85; }
+    100% { transform: scaleY(1.3) scaleX(1.05); opacity: 1; }
+  }
+
+  @keyframes svg-flame-core-flicker-left {
+    0% { transform: scaleY(0.8) scaleX(0.9); opacity: 0.85; }
+    100% { transform: scaleY(1.2) scaleX(1.1); opacity: 1; }
+  }
+
+  @keyframes svg-flame-core-flicker-right {
+    0% { transform: scaleY(0.85) scaleX(0.95); opacity: 0.85; }
+    100% { transform: scaleY(1.15) scaleX(1.05); opacity: 1; }
+  }
+
+  /* Body overrides when contact is morphing: keep header/logo visible but hide other parts */
+  body.is-contact-morphing #header {
+    display: flex !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    pointer-events: none !important;
+    transition: opacity 0.5s ease, filter 0.5s ease !important;
+  }
+
+  body.is-contact-morphing #header > .content,
+  body.is-contact-morphing #header > nav {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.5s ease !important;
+  }
+}
+
+/*
+ * Vertical upward flight path animation (4.5s)
+ * Starts completely off-screen at the bottom and flies straight up to off-screen top.
+ */
+@keyframes spaceship-launch {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 62vh, 0) scale(1.08) rotate(0deg);
+  }
+  98% {
+    opacity: 1;
+    transform: translate3d(0, -72vh, 0) scale(1.08) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -75vh, 0) scale(1.08) rotate(0deg);
+  }
+}

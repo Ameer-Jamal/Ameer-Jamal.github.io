@@ -1,5 +1,11 @@
-(function (global) {
-    'use strict';
+/* eslint-disable */
+// @ts-nocheck
+/**
+ * GitHub projects carousel logic, ported verbatim from the former
+ * src/assets/js/githubProjects.js global script into a bundled ES module so it is
+ * owned by the Angular GitHubProjectsComponent. Behavior is intentionally unchanged.
+ */
+const global = (typeof window !== 'undefined' ? window : globalThis);
 
     const isLocalEnv = typeof window !== 'undefined'
         && window.location
@@ -105,7 +111,7 @@
     }
 
     class GitHubApiClient {
-        constructor(username, options = {}) {
+        constructor(username: any, options: any = {}) {
             if (!username) {
                 throw new Error('username is required');
             }
@@ -516,7 +522,7 @@
     }
 
     class RepoRenderer {
-        constructor(container, { doc = document, username = null } = {}) {
+        constructor(container: any, { doc = document, username = null }: any = {}) {
             if (!container) {
                 throw new Error('A container element is required');
             }
@@ -1338,8 +1344,9 @@
     }
 
     class RepoSectionController {
-        constructor({ containerId, username, renderer, apiClient }) {
+        constructor({ containerId, container, username, renderer, apiClient }: any = {}) {
             this.containerId = containerId;
+            this.container = container || null;
             this.username = username;
             this.renderer = renderer;
             this.apiClient = apiClient;
@@ -1373,32 +1380,14 @@
         }
 
         safeGetContainer() {
+            if (this.container) {
+                return this.container;
+            }
             if (!this.containerId) {
                 return null;
             }
             return document.getElementById(this.containerId);
         }
-    }
-
-    function initializeProjectsSection() {
-        const controller = new RepoSectionController({
-            containerId: 'github-projects',
-            username: 'Ameer-Jamal'
-        });
-        controller.init();
-    }
-
-    function scheduleInitializeProjectsSection() {
-        const run = () => initializeProjectsSection();
-        if (typeof document !== 'undefined' && document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => setTimeout(run, 0));
-        } else {
-            setTimeout(run, 0);
-        }
-    }
-
-    if (typeof document !== 'undefined') {
-        scheduleInitializeProjectsSection();
     }
 
     function decodeReadmeContent(content, encoding) {
@@ -1472,18 +1461,11 @@
         return String(value);
     }
 
-    const exported = {
-        RepositoryNormalizer,
-        GitHubApiClient,
-        MarkdownRenderer,
-        RepoRenderer,
-        RepoCarousel,
-        RepoSectionController
-    };
-
-    if (typeof module !== 'undefined' && module.exports) {
-        module.exports = exported;
-    } else {
-        global.GitHubProjects = exported;
-    }
-})(typeof window !== 'undefined' ? window : globalThis);
+export {
+    RepositoryNormalizer,
+    GitHubApiClient,
+    MarkdownRenderer,
+    RepoRenderer,
+    RepoCarousel,
+    RepoSectionController
+};

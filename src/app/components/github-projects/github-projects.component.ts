@@ -1,78 +1,104 @@
-import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
-import { GitHubProject } from '../../models/github-project.model';
-import { GitHubProjectsService } from '../../services/github-projects.service';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { RepoRenderer, RepoSectionController } from './github-projects-carousel';
 
+const GITHUB_USERNAME = 'Ameer-Jamal';
+const MARKED_SRC = 'assets/js/marked.min.js';
+
+/**
+ * Hosts the GitHub projects carousel. The rendering/data logic lives in
+ * github-projects-carousel.ts (ported verbatim from the old global script) and is
+ * driven imperatively here so behavior matches the previous implementation exactly:
+ * the carousel lazy-loads the first time the "work" article opens.
+ */
 @Component({
   selector: 'app-github-projects',
   standalone: true,
-  imports: [CommonModule],
-  templateUrl: './github-projects.component.html'
+  template: '<div class="github-projects__grid" id="github-projects" #grid></div>'
 })
-export class GitHubProjectsComponent implements OnInit {
-  projects: GitHubProject[] = [];
-  isLoading = true;
-  hasError = false;
-  currentIndex = 0;
-  slideDirection: 'next' | 'prev' = 'next';
+export class GitHubProjectsComponent implements OnInit, OnDestroy {
+  @ViewChild('grid', { static: true }) private readonly grid!: ElementRef<HTMLElement>;
+  private hasLoaded = false;
 
-  constructor(private readonly githubProjectsService: GitHubProjectsService) {}
+  private readonly onArticleOpen = (event: Event): void => {
+    const detail = (event as CustomEvent).detail as { id?: string } | undefined;
+    if (detail?.id === 'work') {
+      void this.loadCarousel();
+    }
+  };
 
   ngOnInit(): void {
-    this.githubProjectsService.getProjects().subscribe({
-      next: (projects) => {
-        this.projects = projects;
-        this.currentIndex = 0;
-        this.isLoading = false;
-      },
-      error: () => {
-        this.hasError = true;
-        this.isLoading = false;
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.addEventListener('portfolio-article-open', this.onArticleOpen);
+
+    // Handle the case where the work article is already visible (e.g. deep link).
+    if (typeof document !== 'undefined') {
+      const workArticle = document.getElementById('work');
+      if (workArticle?.classList.contains('active')) {
+        void this.loadCarousel();
       }
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('portfolio-article-open', this.onArticleOpen);
+    }
+  }
+
+  private async loadCarousel(): Promise<void> {
+    if (this.hasLoaded) {
+      return;
+    }
+    this.hasLoaded = true;
+
+    const container = this.grid.nativeElement;
+    const renderer = new RepoRenderer(container, { username: GITHUB_USERNAME });
+    renderer.renderLoading();
+
+    try {
+      await this.loadMarked();
+    } catch {
+      // Markdown library is optional; the renderer falls back to basic markdown.
+    }
+
+    const controller = new RepoSectionController({
+      container,
+      username: GITHUB_USERNAME,
+      renderer
     });
+    await controller.init();
   }
 
-  get currentProject(): GitHubProject | null {
-    return this.projects[this.currentIndex] ?? null;
-  }
+  private loadMarked(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (typeof document === 'undefined' || (window as any).marked) {
+        resolve();
+        return;
+      }
 
-  get positionLabel(): string {
-    if (this.projects.length === 0) {
-      return '';
-    }
-    return `Project ${this.currentIndex + 1} of ${this.projects.length}`;
-  }
+      const existing = document.querySelector<HTMLScriptElement>(`script[data-portfolio-script="${MARKED_SRC}"]`);
+      if (existing) {
+        if (existing.dataset['loaded'] === 'true') {
+          resolve();
+          return;
+        }
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error(`Failed to load script: ${MARKED_SRC}`)), { once: true });
+        return;
+      }
 
-  goToPrevious(): void {
-    if (this.projects.length <= 1) {
-      return;
-    }
-    this.slideDirection = 'prev';
-    this.currentIndex = (this.currentIndex - 1 + this.projects.length) % this.projects.length;
-  }
-
-  goToNext(): void {
-    if (this.projects.length <= 1) {
-      return;
-    }
-    this.slideDirection = 'next';
-    this.currentIndex = (this.currentIndex + 1) % this.projects.length;
-  }
-
-  formatUpdatedDate(value: string | null): string {
-    if (!value) {
-      return 'Unknown';
-    }
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return 'Unknown';
-    }
-
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+      const script = document.createElement('script');
+      script.src = MARKED_SRC;
+      script.async = false;
+      script.dataset['portfolioScript'] = MARKED_SRC;
+      script.onload = () => {
+        script.dataset['loaded'] = 'true';
+        resolve();
+      };
+      script.onerror = () => reject(new Error(`Failed to load script: ${MARKED_SRC}`));
+      document.body.appendChild(script);
     });
   }
 }

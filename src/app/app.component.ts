@@ -30,7 +30,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private footerElement: HTMLElement | null = null;
   private articleElements: HTMLElement[] = [];
   private removeListeners: Array<() => void> = [];
-  private projectScriptsPromise: Promise<void> | null = null;
 
   ngAfterViewInit(): void {
     if (typeof document === 'undefined') {
@@ -178,10 +177,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       article.style.display = isActive ? 'block' : 'none';
     });
 
-    if (activeArticle.id === 'work') {
-      void this.loadProjectCarousel();
-    }
-
     window.scrollTo(0, 0);
     queueMicrotask(() => {
       window.dispatchEvent(new CustomEvent('portfolio-article-open', { detail: { id: activeArticle.id } }));
@@ -212,60 +207,4 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private readonly stopArticleClick = (event: Event): void => {
     event.stopPropagation();
   };
-
-  private loadProjectCarousel(): Promise<void> {
-    if (this.projectScriptsPromise) {
-      return this.projectScriptsPromise;
-    }
-
-    this.renderProjectLoadingState();
-    this.projectScriptsPromise = this.loadScript('assets/js/marked.min.js')
-      .then(() => this.loadScript('assets/js/githubProjects.js'))
-      .catch((error) => {
-        this.projectScriptsPromise = null;
-        console.error('[Portfolio] Project carousel failed to load.', error);
-        throw error;
-      });
-
-    return this.projectScriptsPromise;
-  }
-
-  private renderProjectLoadingState(): void {
-    const container = document.getElementById('github-projects');
-    if (!container || container.children.length > 0) {
-      return;
-    }
-
-    container.innerHTML = `
-      <div class="github-projects__loader" aria-live="polite">
-        <div class="github-projects__spinner" role="status" aria-label="Loading GitHub projects"></div>
-      </div>
-    `;
-  }
-
-  private loadScript(source: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const existing = document.querySelector<HTMLScriptElement>(`script[data-portfolio-script="${source}"]`);
-      if (existing) {
-        if (existing.dataset['loaded'] === 'true') {
-          resolve();
-          return;
-        }
-        existing.addEventListener('load', () => resolve(), { once: true });
-        existing.addEventListener('error', () => reject(new Error(`Failed to load script: ${source}`)), { once: true });
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = source;
-      script.async = false;
-      script.dataset['portfolioScript'] = source;
-      script.onload = () => {
-        script.dataset['loaded'] = 'true';
-        resolve();
-      };
-      script.onerror = () => reject(new Error(`Failed to load script: ${source}`));
-      document.body.appendChild(script);
-    });
-  }
 }

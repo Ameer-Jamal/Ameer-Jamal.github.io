@@ -1092,6 +1092,33 @@ export function draw(engine: CosmicCanvasEngine): void {
           frag.vy += (dy / dist) * force * 2.0;
         }
       }
+
+      // 12. Nova Strike charging pull — fragments orbit toward cursor on hold
+      if (
+        engine.world.state === 'CHARGING' &&
+        usesDefaultMouseGravity(engine) &&
+        engine.world.mouse.active &&
+        engine.world.mouse.x !== -1000
+      ) {
+        const dx = engine.world.mouse.x - frag.x;
+        const dy = engine.world.mouse.y - frag.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const activeAttractDist = COSMIC_CONSTANTS.MOUSE_ATTRACT_DISTANCE + chargeProgress * 240;
+        if (dist < activeAttractDist) {
+          const pullStrength = (activeAttractDist - dist) / activeAttractDist;
+          const forceMultiplier = 0.78 + chargeProgress * 1.5;
+          frag.vx += (dx / dist) * pullStrength * forceMultiplier;
+          frag.vy += (dy / dist) * pullStrength * forceMultiplier;
+          frag.vx += (-dy / dist) * pullStrength * 0.15;
+          frag.vy += (dx / dist) * pullStrength * 0.15;
+          const speed = Math.sqrt(frag.vx * frag.vx + frag.vy * frag.vy);
+          const maxSpeed = 8.0 + chargeProgress * 4.0;
+          if (speed > maxSpeed) {
+            frag.vx = (frag.vx / speed) * maxSpeed;
+            frag.vy = (frag.vy / speed) * maxSpeed;
+          }
+        }
+      }
     }
 
     // 11. Update & Render main interactive constellation particles

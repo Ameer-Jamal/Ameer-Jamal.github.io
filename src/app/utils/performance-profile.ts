@@ -42,33 +42,33 @@ const PROFILES: Record<PerformanceTier, PerformanceProfile> = {
   },
   medium: {
     tier: 'medium',
-    dprCap: 1.5,
-    maxParticles: 100,
-    backgroundStarDivisor: 8000,
-    galaxyStarMultiplier: 0.5,
-    dustDivisor: 14000,
-    maxNurseryStars: 50,
-    connectionDistanceScale: 0.88,
+    dprCap: 1.25,
+    maxParticles: 72,
+    backgroundStarDivisor: 10000,
+    galaxyStarMultiplier: 0.35,
+    dustDivisor: 17000,
+    maxNurseryStars: 36,
+    connectionDistanceScale: 0.82,
     skipBreeding: false,
     skipPulsarRings: false,
     skipDomTremble: true,
-    effectScale: 0.65,
-    galaxyUpdateStride: 2
+    effectScale: 0.5,
+    galaxyUpdateStride: 3
   },
   low: {
     tier: 'low',
-    dprCap: 1.25,
-    maxParticles: 70,
-    backgroundStarDivisor: 12000,
-    galaxyStarMultiplier: 0.25,
-    dustDivisor: 20000,
-    maxNurseryStars: 30,
-    connectionDistanceScale: 0.75,
+    dprCap: 1.0,
+    maxParticles: 42,
+    backgroundStarDivisor: 15000,
+    galaxyStarMultiplier: 0.15,
+    dustDivisor: 26000,
+    maxNurseryStars: 18,
+    connectionDistanceScale: 0.68,
     skipBreeding: true,
     skipPulsarRings: true,
     skipDomTremble: true,
-    effectScale: 0.4,
-    galaxyUpdateStride: 3
+    effectScale: 0.25,
+    galaxyUpdateStride: 4
   }
 };
 
@@ -121,12 +121,16 @@ export function resolvePerformanceProfile(ctx?: PerformanceDetectionContext): Pe
     return getProfileForTier('high');
   }
 
-  if (isMobileLike && cores <= 4 && dpr >= 2) {
+  if (isMobileLike && dpr >= 2.5) {
     return getProfileForTier('low');
   }
 
-  if (isMobileLike && cores <= 4) {
+  if (isMobileLike && cores <= 6) {
     return getProfileForTier('low');
+  }
+
+  if (isMobileLike) {
+    return getProfileForTier('medium');
   }
 
   return getProfileForTier('medium');

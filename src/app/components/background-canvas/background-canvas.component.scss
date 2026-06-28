@@ -24,6 +24,11 @@ body.is-article-visible .sandbox-panel {
   pointer-events: none;
 }
 
+body:not(.is-article-visible) {
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
 #bg-canvas {
   position: fixed !important;
   top: 0 !important;
@@ -33,6 +38,7 @@ body.is-article-visible .sandbox-panel {
   z-index: 2;
   display: block;
   pointer-events: none;
+  touch-action: none;
 }
 
 .logo-vortex-spin {
@@ -709,4 +715,3 @@ body.is-aya-message.is-aya-reverting {
 #header .subIntro p {
   transition: text-shadow 0.8s ease-in-out;
 }
-

@@ -15,6 +15,9 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
   readonly toolsList = TOOLS_LIST;
   private engine!: CosmicCanvasEngine;
+  private explicitTouchInputEnabled = false;
+  private activeTouchId: number | null = null;
+  private removeTouchListeners: Array<() => void> = [];
 
   get isSandboxOpen(): boolean {
     return this.engine?.world.isSandboxOpen ?? false;
@@ -65,6 +68,8 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
       this.engine.init();
     });
 
+    this.setupTouchInput();
+
     (window as any).__triggerAyaEasterEgg = () => {
       if (this.engine) {
         this.ngZone.runOutsideAngular(() => {
@@ -76,6 +81,8 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.engine?.destroy();
+    this.removeTouchListeners.forEach((remove) => remove());
+    this.removeTouchListeners = [];
     if (typeof window !== 'undefined') {
       delete (window as any).__triggerAyaEasterEgg;
     }
@@ -102,31 +109,37 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
   @HostListener('window:pointerenter', ['$event'])
   onPointerEnter(event: PointerEvent): void {
+    if (this.shouldIgnorePointerEvent(event)) return;
     this.engine?.onPointerEnter(event);
   }
 
   @HostListener('window:pointermove', ['$event'])
   onPointerMove(event: PointerEvent): void {
+    if (this.shouldIgnorePointerEvent(event)) return;
     this.engine?.onPointerMove(event);
   }
 
   @HostListener('window:pointerleave', ['$event'])
   onPointerLeave(event: PointerEvent): void {
+    if (this.shouldIgnorePointerEvent(event)) return;
     this.engine?.onPointerLeave(event);
   }
 
   @HostListener('window:pointercancel', ['$event'])
   onPointerCancel(event: PointerEvent): void {
+    if (this.shouldIgnorePointerEvent(event)) return;
     this.engine?.onPointerCancel(event);
   }
 
   @HostListener('window:pointerdown', ['$event'])
   onPointerDown(event: PointerEvent): void {
+    if (this.shouldIgnorePointerEvent(event)) return;
     this.engine?.onPointerDown(event);
   }
 
   @HostListener('window:pointerup', ['$event'])
   onPointerUp(event: PointerEvent): void {
+    if (this.shouldIgnorePointerEvent(event)) return;
     this.engine?.onPointerUp(event);
   }
 
@@ -179,5 +192,112 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   /** Test-only access to engine internals */
   getEngineForTests(): CosmicCanvasEngine {
     return this.engine;
+  }
+
+  private setupTouchInput(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    this.explicitTouchInputEnabled = !!(
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia?.('(pointer: coarse)').matches
+    );
+
+    if (!this.explicitTouchInputEnabled) {
+      return;
+    }
+
+    const addTouchListener = <K extends keyof WindowEventMap>(
+      type: K,
+      listener: (event: WindowEventMap[K]) => void
+    ): void => {
+      window.addEventListener(type, listener as EventListener, { passive: false });
+      this.removeTouchListeners.push(() => window.removeEventListener(type, listener as EventListener));
+    };
+
+    addTouchListener('touchstart', (event) => this.handleTouchStart(event));
+    addTouchListener('touchmove', (event) => this.handleTouchMove(event));
+    addTouchListener('touchend', (event) => this.handleTouchEnd(event));
+    addTouchListener('touchcancel', (event) => this.handleTouchCancel(event));
+  }
+
+  private shouldIgnorePointerEvent(event: PointerEvent): boolean {
+    return this.explicitTouchInputEnabled && event.pointerType === 'touch' && this.activeTouchId !== null;
+  }
+
+  private shouldCaptureTouch(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) {
+      return true;
+    }
+
+    return !target.closest('#main article, .sandbox-panel, .sandbox-trigger, .sandbox-trigger-hint, input, textarea, select, button, a, label');
+  }
+
+  private buildSyntheticPointer(type: string, touch: Touch, target: EventTarget | null): PointerEvent {
+    return {
+      type,
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      pointerType: 'touch',
+      target
+    } as PointerEvent;
+  }
+
+  private handleTouchStart(event: TouchEvent): void {
+    if (!this.engine || !event.changedTouches.length || !this.shouldCaptureTouch(event.target)) {
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    this.activeTouchId = touch.identifier;
+    event.preventDefault();
+    const synthetic = this.buildSyntheticPointer('pointerdown', touch, event.target);
+    this.engine.onPointerEnter(synthetic);
+    this.engine.onPointerDown(synthetic);
+  }
+
+  private handleTouchMove(event: TouchEvent): void {
+    if (!this.engine || this.activeTouchId === null) {
+      return;
+    }
+
+    const touch = Array.from(event.changedTouches).find((item) => item.identifier === this.activeTouchId);
+    if (!touch) {
+      return;
+    }
+
+    event.preventDefault();
+    this.engine.onPointerMove(this.buildSyntheticPointer('pointermove', touch, event.target));
+  }
+
+  private handleTouchEnd(event: TouchEvent): void {
+    if (!this.engine || this.activeTouchId === null) {
+      return;
+    }
+
+    const touch = Array.from(event.changedTouches).find((item) => item.identifier === this.activeTouchId);
+    if (!touch) {
+      return;
+    }
+
+    event.preventDefault();
+    this.engine.onPointerUp(this.buildSyntheticPointer('pointerup', touch, event.target));
+    this.activeTouchId = null;
+  }
+
+  private handleTouchCancel(event: TouchEvent): void {
+    if (!this.engine || this.activeTouchId === null) {
+      return;
+    }
+
+    const touch = Array.from(event.changedTouches).find((item) => item.identifier === this.activeTouchId);
+    if (!touch) {
+      return;
+    }
+
+    event.preventDefault();
+    this.engine.onPointerCancel(this.buildSyntheticPointer('pointercancel', touch, event.target));
+    this.activeTouchId = null;
   }
 }

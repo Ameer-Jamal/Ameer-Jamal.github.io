@@ -27,7 +27,7 @@ import { beginAyaFormation, drawFormationLinks, endAyaFormation, tickAyaFormatio
 import { drawLoadingRingLinks, tickLoadingSpinner, tryCompleteLoading } from './loading-spinner';
 import { applyPageExplodeFrame, collectPageExplodeElements } from './page-explode-targets';
 import { playSupernovaPop, stopBlackholeHum, updatePowerChargeAudio } from './audio';
-import { getSandboxChargeProgress, tickSandboxCharge, drawSandboxPowerChargeAuras, applyBlackHolePreviewGravity, tryWormholeCapture, applyWormholeForcesToParticle, applySandboxBlackholeForces, applySandboxChronoWellForces, tickTeslaHoldZaps, updateAndDrawSandboxElements, applySandboxPlanetForces, shatterPlanet } from './sandbox-powers';
+import { getSandboxChargeProgress, tickSandboxCharge, drawSandboxPowerChargeAuras, applyBlackHolePreviewGravity, tryWormholeCapture, applyWormholeForcesToParticle, applySandboxBlackholeForces, applySandboxChronoWellForces, tickTeslaHoldZaps, updateAndDrawSandboxElements, applySandboxPlanetForces, applySandboxMeteorForces, shatterPlanet, updateAndDrawMeteors, explodeMeteor } from './sandbox-powers';
 
 function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
   ctx.beginPath();
@@ -631,6 +631,7 @@ export function draw(engine: CosmicCanvasEngine): void {
     applyBlackHolePreviewGravity(engine);
     updateAndDrawSandboxElements(engine, width, height);
     drawSandboxPowerChargeAuras(engine);
+    updateAndDrawMeteors(engine, width, height);
 
     // 5. Draw Charge Aurora ring & charge energy arcs (Nova Strike CHARGING only)
     let chargeProgress = 0;
@@ -1302,6 +1303,7 @@ export function draw(engine: CosmicCanvasEngine): void {
         applySandboxPlanetForces(engine, p, pl);
       }
       applyWormholeForcesToParticle(engine, p);
+      applySandboxMeteorForces(engine, p);
       }
 
       // E. Evaluate Swarm Gravity Physics (paused briefly when using a sandbox power)

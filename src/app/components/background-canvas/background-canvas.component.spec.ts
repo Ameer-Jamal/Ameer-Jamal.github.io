@@ -11,6 +11,7 @@ import { resizeCanvas } from './engine/background-layers';
 import { tickFpsGovernor } from './engine/fps-governor';
 import { transitionTo } from './engine/state-machine';
 import { tryWormholeCapture } from './engine/sandbox-powers';
+import { spawnSandboxMeteor, explodeMeteor, updateAndDrawMeteors } from './engine/sandbox-powers';
 
 describe('BackgroundCanvasComponent', () => {
   let component: BackgroundCanvasComponent;
@@ -894,6 +895,91 @@ describe('BackgroundCanvasComponent', () => {
       component.onPointerUp(touchPointerEvent('pointerup', 100, 100, 'mouse'));
       expect(w().mouse.active).toBe(true);
       expect(w().mouse.x).toBe(100);
+    });
+  });
+
+  describe('meteor launcher power', () => {
+    it('should spawn a meteor into the sandboxMeteors array', () => {
+      w().activePower = 'METEOR';
+      w().meteorAimX = 200;
+      w().meteorAimY = 200;
+      w().mouse.x = 300;
+      w().mouse.y = 300;
+      spawnSandboxMeteor(eng(), 300, 300);
+      expect(w().sandboxMeteors.length).toBe(1);
+      const m = w().sandboxMeteors[0];
+      expect(m.exploded).toBe(false);
+      expect(m.radius).toBeGreaterThan(0);
+      expect(m.trail).toEqual([]);
+    });
+
+    it('should launch in the direction opposite of the drag (slingshot) with capped speed', () => {
+      w().activePower = 'METEOR';
+      w().meteorAimX = 100;
+      w().meteorAimY = 100;
+      w().mouse.x = 200;
+      w().mouse.y = 200;
+      spawnSandboxMeteor(eng(), 200, 200);
+      const m = w().sandboxMeteors[0];
+      // Dragging from 100,100 to 200,200 aims ← (back toward 100,100)
+      expect(m.vx).toBeLessThan(0);
+      expect(m.vy).toBeLessThan(0);
+      // Speed must not exceed the 28 cap
+      const speed = Math.sqrt(m.vx * m.vx + m.vy * m.vy);
+      expect(speed).toBeLessThanOrEqual(28);
+    });
+
+    it('should reset aim coordinates after launch', () => {
+      w().activePower = 'METEOR';
+      w().meteorAimX = 150;
+      w().meteorAimY = 150;
+      spawnSandboxMeteor(eng(), 200, 200);
+      expect(w().meteorAimX).toBe(-1000);
+      expect(w().meteorAimY).toBe(-1000);
+    });
+
+    it('should explode a meteor and produce shockwaves + sparks', () => {
+      w().activePower = 'METEOR';
+      w().meteorAimX = 200;
+      w().meteorAimY = 200;
+      spawnSandboxMeteor(eng(), 300, 300);
+      const m = w().sandboxMeteors[0];
+      const shockwaveCount = w().shockwaves.length;
+      const sparkCount = w().sparks.length;
+      explodeMeteor(eng(), m);
+      expect(m.exploded).toBe(true);
+      expect(w().shockwaves.length).toBeGreaterThan(shockwaveCount);
+      expect(w().sparks.length).toBeGreaterThan(sparkCount);
+    });
+
+    it('should not double-explode an already exploded meteor', () => {
+      w().activePower = 'METEOR';
+      w().meteorAimX = 200;
+      w().meteorAimY = 200;
+      spawnSandboxMeteor(eng(), 300, 300);
+      const m = w().sandboxMeteors[0];
+      explodeMeteor(eng(), m);
+      const shockCount = w().shockwaves.length;
+      explodeMeteor(eng(), m);
+      expect(w().shockwaves.length).toBe(shockCount);
+    });
+
+    it('should remove exploded meteors after timer expires', () => {
+      w().activePower = 'METEOR';
+      w().meteorAimX = 200;
+      w().meteorAimY = 200;
+      w().sandboxPlanets = [];
+      w().sandboxBlackholes = [];
+      w().sandboxChronoWells = [];
+      w().wormholes = [];
+      spawnSandboxMeteor(eng(), 300, 300);
+      const m = w().sandboxMeteors[0];
+      m.timer = 1;
+      explodeMeteor(eng(), m);
+      m.timer = 0;
+      updateAndDrawMeteors(eng(), 1920, 1080);
+      updateAndDrawMeteors(eng(), 1920, 1080);
+      expect(w().sandboxMeteors.length).toBe(0);
     });
   });
 });

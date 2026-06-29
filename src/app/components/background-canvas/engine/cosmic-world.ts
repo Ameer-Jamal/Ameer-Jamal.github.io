@@ -21,6 +21,7 @@ import {
   TwinkleStar,
   Wormhole,
   SandboxChronoWell,
+  SandboxMeteor,
   SandboxPlanet
 } from '../models/cosmic.types';
 
@@ -63,6 +64,9 @@ export interface CosmicWorld {
   draggedWormhole: Wormhole | null;
   sandboxPlanets: SandboxPlanet[];
   draggedPlanet: SandboxPlanet | null;
+  sandboxMeteors: SandboxMeteor[];
+  meteorAimX: number;
+  meteorAimY: number;
   nurseryStarCount: number;
   paintHoldFrame: number;
   mouse: MouseState;
@@ -148,6 +152,9 @@ export function createCosmicWorld(canvas: HTMLCanvasElement, ctx: CanvasRenderin
     draggedWormhole: null,
     sandboxPlanets: [],
     draggedPlanet: null,
+    sandboxMeteors: [],
+    meteorAimX: -1000,
+    meteorAimY: -1000,
     nurseryStarCount: 0,
     paintHoldFrame: 0,
     mouse: { x: -1000, y: -1000, active: false },

@@ -9,7 +9,8 @@ export type MousePower =
   | 'WORMHOLE'
   | 'NEBULAR_WIND'
   | 'TIME_DILATION'
-  | 'PLANET';
+  | 'PLANET'
+  | 'METEOR';
 
 export type SandboxChargeTier = 'tap' | 'charged' | 'super';
 
@@ -53,6 +54,17 @@ export interface SandboxPlanet {
   isFragment?: boolean;
   isDying?: boolean;
   deathTimer?: number;
+}
+
+export interface SandboxMeteor {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  timer: number;
+  trail: { x: number; y: number }[];
+  exploded: boolean;
 }
 
 export interface Wormhole {

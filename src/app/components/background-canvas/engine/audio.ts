@@ -349,6 +349,99 @@ export function playTypewriterClick(): void {
   noise.stop(now + 0.04);
 }
 
+export function playMeteorExplosion(): void {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.setValueAtTime(-10, now);
+  limiter.knee.setValueAtTime(2, now);
+  limiter.ratio.setValueAtTime(20, now);
+  limiter.attack.setValueAtTime(0.001, now);
+  limiter.release.setValueAtTime(0.4, now);
+  limiter.connect(ctx.destination);
+
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(1.2, now);
+  master.connect(limiter);
+
+  // 1. Deep sub-bass boom — the body of the explosion
+  const boom = ctx.createOscillator();
+  const boomGain = ctx.createGain();
+  boom.type = 'sine';
+  boom.frequency.setValueAtTime(140, now);
+  boom.frequency.exponentialRampToValueAtTime(28, now + 1.2);
+  boomGain.gain.setValueAtTime(0.0001, now);
+  boomGain.gain.linearRampToValueAtTime(0.95, now + 0.03);
+  boomGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
+  boom.connect(boomGain);
+  boomGain.connect(master);
+  boom.start(now);
+  boom.stop(now + 1.6);
+
+  // 2. Sharp transient crack — the impact
+  const crack = ctx.createOscillator();
+  const crackGain = ctx.createGain();
+  crack.type = 'triangle';
+  crack.frequency.setValueAtTime(380, now);
+  crack.frequency.exponentialRampToValueAtTime(60, now + 0.14);
+  crackGain.gain.setValueAtTime(0.55, now);
+  crackGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+  crack.connect(crackGain);
+  crackGain.connect(master);
+  crack.start(now);
+  crack.stop(now + 0.2);
+
+  // 3. Mid-range body layer for impact weight
+  const body = ctx.createOscillator();
+  const bodyGain = ctx.createGain();
+  body.type = 'triangle';
+  body.frequency.setValueAtTime(85, now);
+  body.frequency.exponentialRampToValueAtTime(20, now + 1.0);
+  bodyGain.gain.setValueAtTime(0.0001, now);
+  bodyGain.gain.linearRampToValueAtTime(0.55, now + 0.04);
+  bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.3);
+  body.connect(bodyGain);
+  bodyGain.connect(master);
+  body.start(now);
+  body.stop(now + 1.4);
+
+  // 4. Gritty noise shockwave — the rolling debris rumble
+  const rumble = ctx.createBufferSource();
+  rumble.buffer = createNoiseBuffer(ctx, 1.6);
+  const rumbleFilter = ctx.createBiquadFilter();
+  rumbleFilter.type = 'lowpass';
+  rumbleFilter.frequency.setValueAtTime(900, now);
+  rumbleFilter.frequency.exponentialRampToValueAtTime(80, now + 1.4);
+  const rumbleGain = ctx.createGain();
+  rumbleGain.gain.setValueAtTime(0.0001, now);
+  rumbleGain.gain.linearRampToValueAtTime(0.5, now + 0.05);
+  rumbleGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
+  rumble.connect(rumbleFilter);
+  rumbleFilter.connect(rumbleGain);
+  rumbleGain.connect(master);
+  rumble.start(now);
+  rumble.stop(now + 1.6);
+
+  // 5. Fire crackle sizzle — high-frequency spark burst
+  const sizzle = ctx.createBufferSource();
+  sizzle.buffer = createNoiseBuffer(ctx, 0.5);
+  const sizzleFilter = ctx.createBiquadFilter();
+  sizzleFilter.type = 'bandpass';
+  sizzleFilter.frequency.setValueAtTime(2400, now);
+  sizzleFilter.frequency.exponentialRampToValueAtTime(600, now + 0.4);
+  sizzleFilter.Q.setValueAtTime(1.0, now);
+  const sizzleGain = ctx.createGain();
+  sizzleGain.gain.setValueAtTime(0.25, now);
+  sizzleGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+  sizzle.connect(sizzleFilter);
+  sizzleFilter.connect(sizzleGain);
+  sizzleGain.connect(master);
+  sizzle.start(now);
+  sizzle.stop(now + 0.5);
+}
+
 export function playSpaceshipLaunch(): void {
   const ctx = getAudioContext();
   if (!ctx) return;
@@ -1309,7 +1402,8 @@ export function playSelectPowerSound(power: MousePower): void {
     NEBULAR_WIND: 20,
     PAINT_BRUSH: 280,
     WORMHOLE: 120,
-    PLANET: -120
+    PLANET: -120,
+    METEOR: 200
   } as any)[power] || 0;
 
   osc.frequency.setValueAtTime(620 + pitchOffset, now);

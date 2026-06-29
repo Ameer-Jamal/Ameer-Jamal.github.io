@@ -247,6 +247,11 @@ export function onPointerDown(engine: CosmicCanvasEngine, event: PointerEvent): 
     if (engine.world.activePower === 'DEFAULT') {
       transitionTo(engine, 'CHARGING');
     } else {
+      // Meteor: record aim start point for slingshot-style launching
+      if (engine.world.activePower === 'METEOR') {
+        engine.world.meteorAimX = engine.world.mouse.x;
+        engine.world.meteorAimY = engine.world.mouse.y;
+      }
       pauseMouseGravity(engine);
     }
   }

@@ -22,7 +22,9 @@ import {
   Wormhole,
   SandboxChronoWell,
   SandboxMeteor,
-  SandboxPlanet
+  SandboxPlanet,
+  QuantumRift,
+  SandboxChargeTier
 } from '../models/cosmic.types';
 
 export interface CosmicWorld {
@@ -65,6 +67,9 @@ export interface CosmicWorld {
   sandboxPlanets: SandboxPlanet[];
   draggedPlanet: SandboxPlanet | null;
   sandboxMeteors: SandboxMeteor[];
+  quantumRifts: QuantumRift[];
+  lassoReleaseQueued: boolean;
+  lassoReleaseTier: SandboxChargeTier;
   meteorAimX: number;
   meteorAimY: number;
   nurseryStarCount: number;
@@ -110,6 +115,8 @@ export interface CosmicWorld {
   pageReadyAt: number;
   pageAssetsReady: boolean;
   pageLoadCompleteTriggered: boolean;
+  screenShake: number;
+  lassoPath: { x: number; y: number }[];
 }
 
 export function createCosmicWorld(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): CosmicWorld {
@@ -140,6 +147,8 @@ export function createCosmicWorld(canvas: HTMLCanvasElement, ctx: CanvasRenderin
     pageExplodeTimer: 0,
     pageExplodeStartTime: 0,
     screenFlash: 0,
+    screenShake: 0,
+    lassoPath: [],
     blackoutAlpha: 0,
     isSandboxOpen: false,
     isSandboxPinned: false,
@@ -153,6 +162,9 @@ export function createCosmicWorld(canvas: HTMLCanvasElement, ctx: CanvasRenderin
     sandboxPlanets: [],
     draggedPlanet: null,
     sandboxMeteors: [],
+    quantumRifts: [],
+    lassoReleaseQueued: false,
+    lassoReleaseTier: 'tap',
     meteorAimX: -1000,
     meteorAimY: -1000,
     nurseryStarCount: 0,

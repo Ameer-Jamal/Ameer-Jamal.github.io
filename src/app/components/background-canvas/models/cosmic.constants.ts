@@ -30,5 +30,7 @@ export const TOOLS_LIST: SandboxTool[] = [
   { id: 'NEBULAR_WIND', name: 'Nebular Wind', desc: 'Hold to blow stars, release a cosmic jet', icon: '🌬️' },
   { id: 'TIME_DILATION', name: 'Chrono Well', desc: 'Hold to slow time, release a time freeze ripple', icon: '⏳' },
   { id: 'PLANET', name: 'Planet Forge', desc: 'Hold to forge a planet, release to spawn it. Drag, orbit, bounce, and zap it!', icon: '🪐' },
-  { id: 'METEOR', name: 'Meteor Launcher', desc: 'Hold to charge, release to launch a blazing meteor — explodes on impact!', icon: '☄️' }
+  { id: 'METEOR', name: 'Meteor Launcher', desc: 'Hold to charge, release to launch a blazing meteor — explodes on impact!', icon: '☄️' },
+  { id: 'STELLAR_LASSO', name: 'Stellar Lasso', desc: 'Hold to trap stars in a spinning orbital ring, release to launch a high-speed shotgun blast!', icon: '💫' },
+  { id: 'QUANTUM_SPLITTER', name: 'Quantum Splitter', desc: 'Drag to slice spatial rifts — stars crossing duplicate into smaller copies!', icon: '🌌' }
 ];

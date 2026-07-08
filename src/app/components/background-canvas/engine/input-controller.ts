@@ -88,6 +88,23 @@ export function onPointerMove(engine: CosmicCanvasEngine, event: PointerEvent): 
     const curX = engine.world.mouse.x;
     const curY = engine.world.mouse.y;
 
+    if (engine.world.activePower === 'QUANTUM_SPLITTER' && engine.world.isMouseDown && prevX !== -1000) {
+      const distSq = (curX - prevX) ** 2 + (curY - prevY) ** 2;
+      if (distSq > 9) {
+        engine.world.quantumRifts.push({
+          x1: prevX,
+          y1: prevY,
+          x2: curX,
+          y2: curY,
+          life: 1.0,
+          maxLife: 1.0
+        });
+        if (engine.world.quantumRifts.length > 80) {
+          engine.world.quantumRifts.shift();
+        }
+      }
+    }
+
     if (engine.world.draggedBlackhole) {
       engine.world.draggedBlackhole.x = curX;
       engine.world.draggedBlackhole.y = curY;
@@ -120,6 +137,14 @@ export function onPointerMove(engine: CosmicCanvasEngine, event: PointerEvent): 
     }
 
     engine.world.mouse.active = true;
+    
+    if (engine.world.activePower === 'STELLAR_LASSO' && engine.world.isMouseDown) {
+      engine.world.lassoPath.push({ x: curX, y: curY });
+      if (engine.world.lassoPath.length > 180) {
+        engine.world.lassoPath.shift();
+      }
+    }
+
     engine.world.lastMoveTime = Date.now();
 
     // Stars follow the cursor when it moves (paused during sandbox hold)
@@ -200,12 +225,17 @@ export function onPointerDown(engine: CosmicCanvasEngine, event: PointerEvent): 
       return;
     }
 
+
     updatePointerCoords(engine, event.clientX, event.clientY);
     engine.world.pointerInsideWindow = true;
     engine.world.mouse.active = true;
     engine.world.isMouseDown = true;
     engine.world.chargeTime = 0;
     engine.world.teslaHoldZapTimer = 0;
+    
+    if (engine.world.activePower === 'STELLAR_LASSO') {
+      engine.world.lassoPath = [{ x: engine.world.mouse.x, y: engine.world.mouse.y }];
+    }
 
     // Reset dragged references
     engine.world.draggedBlackhole = null;

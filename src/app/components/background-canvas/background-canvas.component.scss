@@ -16,7 +16,7 @@ body.is-article-visible .sandbox-trigger-wrapper {
 }
 
 body.is-article-visible .sandbox-panel {
-  transform: translate(-50%, -120%) !important;
+  transform: translateX(100%) !important;
   pointer-events: none !important;
 }
 
@@ -58,7 +58,6 @@ body:not(.is-article-visible) {
   -ms-user-select: none !important;
   user-select: none !important;
   -webkit-user-drag: none !important;
-  user-drag: none !important;
 }
 
 .logo-moon-transform {
@@ -164,7 +163,7 @@ body.is-aya-message {
   .icons .fa-envelope::before {
     font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif !important;
     font-weight: 400 !important;
-    -webkit-font-smoothing: auto !important;
+    -webkit-font-smoothing: subpixel-antialiased !important;
   }
 
   .icons a.fa-linkedin::before {
@@ -352,31 +351,34 @@ body.is-aya-message.is-aya-reverting {
 .sandbox-panel {
   position: fixed;
   top: 0;
-  left: 50%;
-  transform: translate(-50%, -100%);
-  width: 96%;
-  max-width: 1200px;
-  max-height: calc(100dvh - 50px);
-  min-height: 0;
+  right: 0;
+  left: auto;
+  transform: translateX(100%);
+  width: 380px;
+  max-width: 90%;
+  height: 100dvh;
+  max-height: 100dvh;
   overflow: hidden;
-  background: rgba(5, 10, 24, 0.78);
+  background: rgba(5, 10, 24, 0.88);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
   border: 1px solid rgba(0, 240, 255, 0.25);
-  border-radius: 16px;
-  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.8), 0 0 35px rgba(0, 240, 255, 0.1);
+  border-right: none;
+  border-radius: 16px 0 0 16px;
+  box-shadow: -15px 0 50px rgba(0, 0, 0, 0.75), 0 0 35px rgba(0, 240, 255, 0.08);
   z-index: 12000;
-  transition: transform 0.65s cubic-bezier(0.19, 1, 0.22, 1);
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 24px;
   pointer-events: auto;
 }
 
 .sandbox-panel--open {
-  transform: translate(-50%, 25px);
+  transform: translateX(0);
 }
+
 
 .sandbox-panel__close,
 .sandbox-pin {
@@ -509,7 +511,33 @@ body.is-aya-message.is-aya-reverting {
   letter-spacing: 0.15rem;
   color: #ffffff;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+  margin: 0;
+  text-transform: uppercase;
 }
+
+.sandbox-panel__author {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.05rem;
+  margin-top: -2px;
+  margin-bottom: 2px;
+
+  .author-name {
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 700;
+  }
+
+  .author-title {
+    color: #00f0ff;
+    opacity: 0.85;
+    font-weight: 600;
+    margin-left: 4px;
+    letter-spacing: 0.03rem;
+  }
+}
+
+
 
 .sandbox-panel__subtitle {
   font-size: 0.65rem;
@@ -519,37 +547,47 @@ body.is-aya-message.is-aya-reverting {
 }
 
 .sandbox-panel__body {
-  flex: 0 1 auto;
+  flex: 1;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
 .sandbox-panel__tools {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex-grow: 1;
+  padding-right: 4px;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 240, 255, 0.25);
+    border-radius: 2px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 240, 255, 0.45);
+  }
 }
 
 @media (max-width: 600px) {
   .sandbox-panel {
     padding: 16px;
-    height: calc(100dvh - 24px);
-    max-height: calc(100dvh - 24px);
+    width: 280px;
+    max-width: 85%;
+    height: 100dvh;
+    max-height: 100dvh;
   }
 
   .sandbox-panel--open {
-    transform: translate(-50%, 12px);
-  }
-
-  .sandbox-panel__tools {
-    grid-template-columns: 1fr;
+    transform: translateX(0);
   }
 
   .sandbox-tool {
@@ -660,25 +698,34 @@ body.is-aya-message.is-aya-reverting {
 
 .sandbox-panel__actions {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 14px;
   flex-shrink: 0;
   margin-top: auto;
 }
 
+.sandbox-panel__hint-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
 .sandbox-panel__hint {
-  font-size: 0.6rem;
-  color: rgba(0, 240, 255, 0.7);
+  font-size: 0.62rem;
+  color: rgba(0, 240, 255, 0.65);
   font-weight: 500;
   letter-spacing: 0.02rem;
-  margin-right: auto;
+  line-height: 1.3;
+}
+
+.sandbox-panel__controls-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  line-height: 1.2;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
 }
 
 .sandbox-action-btn {
@@ -714,4 +761,69 @@ body.is-aya-message.is-aya-reverting {
 #header .content p,
 #header .subIntro p {
   transition: text-shadow 0.8s ease-in-out;
+}
+
+/* Custom switch light styling for Game Mode */
+.sandbox-panel__game-mode-toggle {
+  display: flex;
+  align-items: center;
+}
+
+.sandbox-light-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.65);
+  user-select: none;
+  transition: color 0.3s ease;
+
+  &:hover {
+    color: #00f0ff;
+
+    .sandbox-light-indicator {
+      border-color: rgba(0, 240, 255, 0.65);
+    }
+  }
+}
+
+.sandbox-light-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.sandbox-light-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.8);
+  flex-shrink: 0;
+}
+
+.sandbox-light-input:checked + .sandbox-light-indicator {
+  background-color: #00f0ff;
+  border-color: #00f0ff;
+  box-shadow: 0 0 8px #00f0ff, 0 0 16px rgba(0, 240, 255, 0.6);
+}
+
+.sandbox-light-text {
+  line-height: 1;
+}
+
+
+/* Game Mode overlay hiding rules */
+body.is-game-mode {
+  #wrapper {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+    transition: opacity 0.5s ease, visibility 0.5s ease !important;
+  }
 }

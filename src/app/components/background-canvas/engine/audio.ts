@@ -1378,6 +1378,81 @@ export function playPowerReleaseSound(power: MousePower, tier: SandboxChargeTier
       }
       break;
     }
+
+    case 'STELLAR_LASSO': {
+      const dur = tier === 'super' ? 0.38 : tier === 'charged' ? 0.28 : 0.18;
+      const vol = tier === 'super' ? 1.0 : tier === 'charged' ? 0.7 : 0.45;
+      
+      // Thread contraction sweep
+      const snap = ctx.createOscillator();
+      snap.type = 'triangle';
+      snap.frequency.setValueAtTime(880, now);
+      snap.frequency.exponentialRampToValueAtTime(110, now + dur);
+      
+      const snapGain = ctx.createGain();
+      snapGain.gain.setValueAtTime(vol * 0.75, now);
+      snapGain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      
+      snap.connect(snapGain);
+      snapGain.connect(master);
+      snap.start(now);
+      snap.stop(now + dur + 0.05);
+      
+      // Energy pop burst noise
+      const noise = ctx.createBufferSource();
+      noise.buffer = createNoiseBuffer(ctx, dur);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(2200, now);
+      filter.frequency.exponentialRampToValueAtTime(400, now + dur);
+      
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(vol * 0.45, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(master);
+      noise.start(now);
+      noise.stop(now + dur + 0.05);
+      break;
+    }
+
+    case 'QUANTUM_SPLITTER': {
+      const dur = tier === 'super' ? 0.68 : tier === 'charged' ? 0.45 : 0.3;
+      const vol = tier === 'super' ? 1.3 : tier === 'charged' ? 0.9 : 0.55;
+      
+      // Detuned buzzy reality laser slash oscillators
+      const osc1 = ctx.createOscillator();
+      osc1.type = 'sawtooth';
+      osc1.frequency.setValueAtTime(800, now);
+      osc1.frequency.exponentialRampToValueAtTime(80, now + dur);
+      
+      const osc2 = ctx.createOscillator();
+      osc2.type = 'sawtooth';
+      osc2.frequency.setValueAtTime(815, now); // slightly detuned
+      osc2.frequency.exponentialRampToValueAtTime(78, now + dur);
+      
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(900, now);
+      filter.frequency.exponentialRampToValueAtTime(250, now + dur);
+      
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(vol * 0.68, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      
+      osc1.connect(filter);
+      osc2.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+      
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + dur + 0.05);
+      osc2.stop(now + dur + 0.05);
+      break;
+    }
   }
 }
 
@@ -1403,7 +1478,9 @@ export function playSelectPowerSound(power: MousePower): void {
     PAINT_BRUSH: 280,
     WORMHOLE: 120,
     PLANET: -120,
-    METEOR: 200
+    METEOR: 200,
+    STELLAR_LASSO: -160,
+    QUANTUM_SPLITTER: 320
   } as any)[power] || 0;
 
   osc.frequency.setValueAtTime(620 + pitchOffset, now);

@@ -10,7 +10,7 @@ import { initStars } from './engine/background-layers';
 import { resizeCanvas } from './engine/background-layers';
 import { tickFpsGovernor } from './engine/fps-governor';
 import { transitionTo } from './engine/state-machine';
-import { tryWormholeCapture } from './engine/sandbox-powers';
+import { tryWormholeCapture, clearSandboxElements, releaseStellarLassoPower } from './engine/sandbox-powers';
 import { spawnSandboxMeteor, explodeMeteor, updateAndDrawMeteors } from './engine/sandbox-powers';
 
 describe('BackgroundCanvasComponent', () => {
@@ -31,6 +31,10 @@ describe('BackgroundCanvasComponent', () => {
     fixture.detectChanges();
     eng = () => component.getEngineForTests();
     w = () => eng().world;
+  });
+
+  afterEach(() => {
+    document.body.classList.remove('is-game-mode');
   });
 
   it('should create the component', () => {
@@ -353,6 +357,24 @@ describe('BackgroundCanvasComponent', () => {
       expect(component.isSandboxPinned).toBeTrue();
       component.toggleSandboxPin();
       expect(component.isSandboxPinned).toBeFalse();
+    });
+
+    it('should handle game mode changes', () => {
+      // Initially false
+      expect(component.isGameMode).toBeFalse();
+      expect(document.body.classList.contains('is-game-mode')).toBeFalse();
+
+      // Toggle it to true
+      const mockCheckbox = { checked: true } as HTMLInputElement;
+      component.toggleGameMode({ target: mockCheckbox } as unknown as Event);
+      expect(component.isGameMode).toBeTrue();
+      expect(document.body.classList.contains('is-game-mode')).toBeTrue();
+
+      // Toggle it to false
+      mockCheckbox.checked = false;
+      component.toggleGameMode({ target: mockCheckbox } as unknown as Event);
+      expect(component.isGameMode).toBeFalse();
+      expect(document.body.classList.contains('is-game-mode')).toBeFalse();
     });
 
     it('should keep wormholes when switching tools', () => {
@@ -980,6 +1002,68 @@ describe('BackgroundCanvasComponent', () => {
       updateAndDrawMeteors(eng(), 1920, 1080);
       updateAndDrawMeteors(eng(), 1920, 1080);
       expect(w().sandboxMeteors.length).toBe(0);
+    });
+
+    it('should trap stars in orbit when STELLAR_LASSO is active, and release them as shotgun blast', () => {
+      w().activePower = 'STELLAR_LASSO';
+      w().isMouseDown = true;
+      w().mouse.x = 200;
+      w().mouse.y = 200;
+      w().mouse.active = true;
+      w().particles = [{
+        x: 210,
+        y: 210,
+        vx: 1,
+        vy: 1,
+        baseVx: 1,
+        baseVy: 1,
+        radius: 3,
+        baseRadius: 3,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(0, 240, 255, ',
+        flockable: true,
+        life: 1.0,
+        birthProgress: 1.0,
+        deathProgress: 0,
+        isDying: false,
+        behaviorState: 'CRUISE',
+        behaviorTimer: 100,
+        speedFactor: 1.0
+      }];
+
+      // Run draw to trigger particle pull/lasso loop
+      draw(eng());
+      expect(w().particles[0].isLassoed).toBe(true);
+
+      // Release lasso
+      releaseStellarLassoPower(eng(), 'tap');
+      expect(w().particles[0].isLassoed).toBe(false);
+      // Particle should be accelerated outward
+      const speed = Math.sqrt(w().particles[0].vx ** 2 + w().particles[0].vy ** 2);
+      expect(speed).toBeGreaterThan(8.0);
+    });
+
+    it('should add quantum rifts when dragging with QUANTUM_SPLITTER active', () => {
+      w().activePower = 'QUANTUM_SPLITTER';
+      w().isMouseDown = true;
+      w().mouse.x = 100;
+      w().mouse.y = 100;
+      
+      const event = new PointerEvent('pointermove', { clientX: 120, clientY: 125 });
+      eng().onPointerMove(event);
+      
+      expect(w().quantumRifts.length).toBe(1);
+      expect(w().quantumRifts[0].x1).toBe(100);
+      expect(w().quantumRifts[0].y1).toBe(100);
+      expect(w().quantumRifts[0].x2).toBe(120);
+      expect(w().quantumRifts[0].y2).toBe(125);
+    });
+
+    it('should clear quantum rifts on clearSandboxElements', () => {
+      w().quantumRifts = [{ x1: 0, y1: 0, x2: 10, y2: 10, life: 1.0, maxLife: 1.0 }];
+      clearSandboxElements(eng());
+      expect(w().quantumRifts.length).toBe(0);
     });
   });
 });

@@ -10,7 +10,19 @@ export type MousePower =
   | 'NEBULAR_WIND'
   | 'TIME_DILATION'
   | 'PLANET'
-  | 'METEOR';
+  | 'METEOR'
+  | 'STELLAR_LASSO'
+  | 'QUANTUM_SPLITTER';
+
+export interface QuantumRift {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  life: number;
+  maxLife: number;
+}
+
 
 export type SandboxChargeTier = 'tap' | 'charged' | 'super';
 
@@ -101,6 +113,7 @@ export interface Particle {
   formationActive?: boolean;
   orbitAngle?: number;
   isHeart?: boolean;
+  isLassoed?: boolean;
 }
 
 export interface TwinkleStar {

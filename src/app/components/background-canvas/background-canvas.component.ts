@@ -189,6 +189,24 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.engine?.clearSandboxElements();
   }
 
+  get isGameMode(): boolean {
+    if (typeof document !== 'undefined') {
+      return document.body.classList.contains('is-game-mode');
+    }
+    return false;
+  }
+
+  toggleGameMode(event: Event): void {
+    if (typeof document !== 'undefined') {
+      const checkbox = event.target as HTMLInputElement;
+      if (checkbox.checked) {
+        document.body.classList.add('is-game-mode');
+      } else {
+        document.body.classList.remove('is-game-mode');
+      }
+    }
+  }
+
   /** Test-only access to engine internals */
   getEngineForTests(): CosmicCanvasEngine {
     return this.engine;
@@ -233,6 +251,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
     return !target.closest('#main article, .sandbox-panel, .sandbox-trigger, .sandbox-trigger-hint, input, textarea, select, button, a, label');
   }
+
 
   private buildSyntheticPointer(type: string, touch: Touch, target: EventTarget | null): PointerEvent {
     return {

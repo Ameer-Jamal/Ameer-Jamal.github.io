@@ -19,7 +19,7 @@
     </button>
     <div class="sandbox-panel__header">
       <div class="sandbox-panel__header-row">
-        <span class="sandbox-panel__title">SANDBOX UNIVERSE CREATOR</span>
+        <h2 class="sandbox-panel__title">SANDBOX UNIVERSE CREATOR</h2>
         <button
           class="sandbox-pin"
           type="button"
@@ -29,6 +29,9 @@
           [attr.aria-label]="isSandboxPinned ? 'Unpin sandbox panel' : 'Pin sandbox panel'">
           <i class="fas fa-thumbtack sandbox-pin__icon" aria-hidden="true"></i>
         </button>
+      </div>
+      <div class="sandbox-panel__author">
+        by <span class="author-name">Ameer Jamal</span> <span class="author-title">Software Engineer</span>
       </div>
       <span class="sandbox-panel__subtitle">Place objects, switch tools, combine powers — CLEAR resets the world</span>
       <span *ngIf="activePower === 'PAINT_BRUSH'" class="sandbox-panel__nursery-count">{{ nurseryStarsLabel }} nursery stars</span>
@@ -48,11 +51,23 @@
         </button>
       </div>
       <div class="sandbox-panel__actions">
-        <span class="sandbox-panel__hint">💡 Psst... try clicking the logo!</span>
-        <button class="sandbox-action-btn" (click)="clearSandboxElements()">CLEAR SIMULATION</button>
+        <div class="sandbox-panel__hint-row">
+          <span class="sandbox-panel__hint">💡 Psst... try clicking the logo!</span>
+        </div>
+        <div class="sandbox-panel__controls-row">
+          <div class="sandbox-panel__game-mode-toggle">
+            <label class="sandbox-light-label">
+              <input type="checkbox" [checked]="isGameMode" (change)="toggleGameMode($event)" class="sandbox-light-input">
+              <span class="sandbox-light-indicator"></span>
+              <span class="sandbox-light-text">Game Mode</span>
+            </label>
+          </div>
+          <button class="sandbox-action-btn" (click)="clearSandboxElements()">CLEAR SIMULATION</button>
+        </div>
       </div>
     </div>
   </div>
 
   <canvas #canvasRef id="bg-canvas"></canvas>
 </div>
+

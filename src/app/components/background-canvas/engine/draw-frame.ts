@@ -26,7 +26,7 @@ import { endLogoBlackhole } from './logo-easter-egg';
 import { beginAyaFormation, drawFormationLinks, endAyaFormation, tickAyaFormation } from './aya-formation';
 import { drawLoadingRingLinks, tickLoadingSpinner, tryCompleteLoading } from './loading-spinner';
 import { applyPageExplodeFrame, collectPageExplodeElements } from './page-explode-targets';
-import { playSupernovaPop, stopBlackholeHum, updatePowerChargeAudio } from './audio';
+import { playSupernovaPop, stopBlackholeHum, updatePowerChargeAudio, playWormholeTeleportSound } from './audio';
 import { getSandboxChargeProgress, tickSandboxCharge, drawSandboxPowerChargeAuras, applyBlackHolePreviewGravity, tryWormholeCapture, applyWormholeForcesToParticle, applySandboxBlackholeForces, applySandboxChronoWellForces, tickTeslaHoldZaps, updateAndDrawSandboxElements, applySandboxPlanetForces, applySandboxMeteorForces, shatterPlanet, updateAndDrawMeteors, explodeMeteor } from './sandbox-powers';
 
 function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
@@ -1144,6 +1144,7 @@ export function draw(engine: CosmicCanvasEngine): void {
 
     for (let i = pLength - 1; i >= 0; i--) {
       const p = engine.world.particles[i];
+      p.isLassoed = false;
 
       // A. Star Life Cycle Logic
       if (p.birthProgress < 1.0 && engine.world.state !== 'MOON_DANCE' && engine.world.state !== 'AYA_FORMATION' && engine.world.state !== 'LOADING') {
@@ -1427,6 +1428,298 @@ export function draw(engine: CosmicCanvasEngine): void {
         }
       }
 
+      // Physics wall collisions against Stellar Lasso path segments (acts as a solid containment fence!)
+      if (engine.world.activePower === 'STELLAR_LASSO' && (engine.world.isMouseDown || engine.world.lassoReleaseQueued) && engine.world.lassoPath && engine.world.lassoPath.length > 1) {
+        const pathLen = engine.world.lassoPath.length;
+        for (let k = 0; k < pathLen - 1; k += 2) {
+          const pt1 = engine.world.lassoPath[k];
+          const pt2 = engine.world.lassoPath[k + 1];
+          if (!pt1 || !pt2) continue;
+          
+          const segDx = pt2.x - pt1.x;
+          const segDy = pt2.y - pt1.y;
+          const segLenSq = segDx * segDx + segDy * segDy;
+          if (segLenSq < 1) continue;
+          
+          let t = ((p.x - pt1.x) * segDx + (p.y - pt1.y) * segDy) / segLenSq;
+          t = Math.max(0, Math.min(1, t));
+          
+          const projX = pt1.x + t * segDx;
+          const projY = pt1.y + t * segDy;
+          const distToSeg = Math.sqrt((p.x - projX) ** 2 + (p.y - projY) ** 2) || 1;
+          
+          const radiusSum = p.radius + 12.0; // thick physical containment forcefield wall
+          if (distToSeg < radiusSum) {
+            const nx = (p.x - projX) / distToSeg;
+            const ny = (p.y - projY) / distToSeg;
+            
+            // Push out of collision
+            p.x = projX + nx * radiusSum;
+            
+            // Reflect velocity along normal (bounce!)
+            const dot = p.vx * nx + p.vy * ny;
+            p.vx = (p.vx - 2.0 * dot * nx) * 0.85;
+            p.vy = (p.vy - 2.0 * dot * ny) * 0.85;
+            
+            // Slide along the rope wall
+            p.vx += -ny * 0.4;
+            p.vy += nx * 0.4;
+            
+            p.colorBlend = Math.max(p.colorBlend, 0.7);
+            
+            if (Math.random() < 0.15) {
+              engine.world.sparks.push({
+                x: p.x,
+                y: p.y,
+                vx: nx * 2.0 + (Math.random() - 0.5) * 1.5,
+                vy: ny * 2.0 + (Math.random() - 0.5) * 1.5,
+                radius: Math.random() * 1.0 + 0.5,
+                alpha: 1.0,
+                color: '255, 220, 50'
+              });
+            }
+          }
+        }
+      }
+
+      // Sandbox Stellar Lasso orbit pull physics (while lasso active + mouse held OR while collapsing)
+      if (engine.world.activePower === 'STELLAR_LASSO' && !inFormation && !inLoadingRing) {
+        const isHeld = engine.world.isMouseDown && engine.world.mouse.active && engine.world.mouse.x !== -1000;
+        const isCollapsing = engine.world.lassoReleaseQueued && engine.world.lassoPath && engine.world.lassoPath.length > 0;
+        
+        if (isHeld || isCollapsing) {
+          let targetX = engine.world.mouse.x;
+          let targetY = engine.world.mouse.y;
+          
+          if (isCollapsing) {
+            const tip = engine.world.lassoPath[engine.world.lassoPath.length - 1];
+            targetX = tip.x;
+            targetY = tip.y;
+            
+            // Constrain and scale positions directly in sync with the collapsing container to prevent phasing!
+            p.x += (tip.x - p.x) * 0.28;
+            p.y += (tip.y - p.y) * 0.28;
+          }
+          
+          const dx = p.x - targetX;
+          const dy = p.y - targetY;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          let minTrailDist = dist;
+          if (engine.world.lassoPath && engine.world.lassoPath.length > 0) {
+            for (const pt of engine.world.lassoPath) {
+              const td = Math.sqrt((pt.x - p.x) ** 2 + (pt.y - p.y) ** 2);
+              if (td < minTrailDist) {
+                minTrailDist = td;
+              }
+            }
+          }
+          
+          if (minTrailDist < 55 || p.isLassoed) {
+            p.isLassoed = true;
+            
+            // Squeeze them in towards the collapsing center!
+            const pullStrength = isCollapsing ? 0.65 : 0.22;
+            p.vx -= (dx / dist) * pullStrength;
+            p.vy -= (dy / dist) * pullStrength;
+            
+            // Swirl inside the bubble
+            const swirlSpeed = isCollapsing ? 0.7 : 1.5;
+            p.vx += (-dy / dist) * swirlSpeed;
+            p.vy += (dx / dist) * swirlSpeed;
+            
+            p.colorBlend = Math.max(p.colorBlend, 0.85);
+
+            // Draw the physical individual star forcefield containment bubble!
+            engine.world.ctx.beginPath();
+            engine.world.ctx.arc(p.x, p.y, p.radius + 6.0, 0, Math.PI * 2);
+            engine.world.ctx.strokeStyle = `rgba(0, 230, 255, ${0.45 * (0.8 + Math.sin(Date.now() / 120) * 0.2)})`;
+            engine.world.ctx.lineWidth = 0.85;
+            engine.world.ctx.stroke();
+            
+            engine.world.ctx.fillStyle = 'rgba(0, 200, 255, 0.04)';
+            engine.world.ctx.fill();
+          }
+        }
+      }
+
+      // Sandbox Quantum Splitter spatial rifts duplication & gravity tear (while rifts exist)
+      if (engine.world.quantumRifts && engine.world.quantumRifts.length > 0 && !inFormation && !inLoadingRing && !p.isDying && p.birthProgress >= 1.0) {
+        for (const f of engine.world.quantumRifts) {
+          const dx = f.x2 - f.x1;
+          const dy = f.y2 - f.y1;
+          const lenSq = dx * dx + dy * dy;
+          if (lenSq < 9.0) continue; // skip tiny/zero-length segments to avoid division issues!
+          
+          let t = ((p.x - f.x1) * dx + (p.y - f.y1) * dy) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+          
+          const projX = f.x1 + t * dx;
+          const projY = f.y1 + t * dy;
+          const pullDist = Math.sqrt((p.x - projX) ** 2 + (p.y - projY) ** 2);
+          
+          // Spatial rift gravity: violent gravity pulling stars into the reality tear!
+          if (pullDist < 120) {
+            const pullForce = (120 - pullDist) / 120 * f.life * 0.55;
+            p.vx += (projX - p.x) * pullForce;
+            p.vy += (projY - p.y) * pullForce;
+            p.colorBlend = Math.max(p.colorBlend, 0.45 * f.life);
+          }
+          
+          // Split boundary hit: portal teleport if multiple rifts exist, else split star
+          if (projX !== undefined && projY !== undefined && pullDist < 14 && p.radius >= 1.35) {
+            const riftsCount = engine.world.quantumRifts.length;
+            
+            if (riftsCount > 1) {
+              let fTarget = engine.world.quantumRifts[riftsCount - 1];
+              if (fTarget === f) {
+                fTarget = engine.world.quantumRifts[0];
+              }
+              
+              const randT = Math.random();
+              const targetX = fTarget.x1 + (fTarget.x2 - fTarget.x1) * randT;
+              const targetY = fTarget.y1 + (fTarget.y2 - fTarget.y1) * randT;
+              
+              // Perpendicular ejection velocity from the exit rift
+              const fTdx = fTarget.x2 - fTarget.x1;
+              const fTdy = fTarget.y2 - fTarget.y1;
+              const fTlen = Math.sqrt(fTdx * fTdx + fTdy * fTdy) || 1;
+              
+              let fTnx = -fTdy / fTlen;
+              let fTny = fTdx / fTlen;
+              
+              if (fTlen < 3.0) {
+                const randAngle = Math.random() * Math.PI * 2;
+                fTnx = Math.cos(randAngle);
+                fTny = Math.sin(randAngle);
+              }
+              
+              const currentSpeed = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 2.0;
+              const launchSpeed = Math.max(9.0, Math.min(13.0, currentSpeed * 1.45));
+              const side = Math.random() < 0.5 ? 1 : -1;
+              
+              // Play portal teleport sound effect!
+              playWormholeTeleportSound();
+              
+              // Sparks at entry
+              spawnStardustPuff(engine, p.x, p.y, p.colorPrefix);
+              
+              // Teleport coordinates, physically offsetting by 20px along the exit vector so it exits outside the 14px trigger threshold!
+              p.x = targetX + fTnx * side * 20.0;
+              p.y = targetY + fTny * side * 20.0;
+              
+              // Sparks at exit
+              spawnStardustPuff(engine, p.x, p.y, p.colorPrefix);
+              
+              p.vx = fTnx * side * launchSpeed;
+              p.vy = fTny * side * launchSpeed;
+              p.vy = fTny * side * launchSpeed;
+              
+              p.colorBlend = 1.0;
+              p.colorPrefix = Math.random() < 0.5 ? 'rgba(0, 240, 255,' : 'rgba(255, 0, 240,';
+              
+              // Draw visual arcing lightning pathway connecting the portal tears!
+              engine.world.lightnings.push({
+                segments: [
+                  { x: projX, y: projY },
+                  { x: (projX + targetX) / 2 + (Math.random() - 0.5) * 35, y: (projY + targetY) / 2 + (Math.random() - 0.5) * 35 },
+                  { x: targetX, y: targetY }
+                ],
+                alpha: 1.0
+              });
+              
+              engine.world.shakeTimer = Math.max(engine.world.shakeTimer, 8);
+            } else {
+              // Kill the parent star
+              p.isDying = true;
+              p.deathProgress = 1.0;
+              
+              // Screen shake when splitting reality!
+              engine.world.shakeTimer = Math.max(engine.world.shakeTimer, 12);
+              
+              // Generate split copies
+              const currentSpeed = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1.5;
+              const originalAngle = Math.atan2(p.vy, p.vx);
+              const speed = Math.min(11.0, currentSpeed * 1.35); // accelerate child stars outwards
+              
+              const divergence = 0.35 + Math.random() * 0.15; // angle divergence
+              const angle1 = originalAngle + divergence;
+              const angle2 = originalAngle - divergence;
+              
+              const rScaled = p.radius * 0.65;
+              const brScaled = p.baseRadius * 0.65;
+
+              // Spawn sparks and effects
+              spawnStardustPuff(engine, p.x, p.y, p.colorPrefix);
+              
+              // Draw lightning crack arcing from the tear point
+              engine.world.lightnings.push({
+                segments: [
+                  { x: projX, y: projY },
+                  { x: p.x + (Math.random() - 0.5) * 20, y: p.y + (Math.random() - 0.5) * 20 },
+                  { x: p.x + Math.cos(angle1) * 35, y: p.y + Math.sin(angle1) * 35 }
+                ],
+                alpha: 1.0
+              });
+              
+              // Check performance cap before duplicating
+              if (engine.world.particles.length < getMaxParticles(engine.world) * 1.15) {
+                const p1: Particle = {
+                  x: p.x + Math.cos(angle1) * 8,
+                  y: p.y + Math.sin(angle1) * 8,
+                  vx: Math.cos(angle1) * speed,
+                  vy: Math.sin(angle1) * speed,
+                  baseVx: Math.cos(angle1) * p.baseVx,
+                  baseVy: Math.sin(angle1) * p.baseVy,
+                  radius: Math.max(0.65, rScaled),
+                  baseRadius: Math.max(0.65, brScaled),
+                  colorBlend: 1.0,
+                  wobbleTimer: p.wobbleTimer,
+                  colorPrefix: 'rgba(0, 240, 255,', // force cyan/magenta quantum neon glow!
+                  flockable: p.flockable,
+                  life: p.life * 0.9, // slightly shorter life
+                  birthProgress: 1.0,
+                  deathProgress: 0,
+                  isDying: false,
+                  behaviorState: p.behaviorState,
+                  behaviorTimer: p.behaviorTimer,
+                  speedFactor: p.speedFactor,
+                  isNursery: p.isNursery,
+                  isLassoed: false
+                };
+                
+                const p2: Particle = {
+                  x: p.x + Math.cos(angle2) * 8,
+                  y: p.y + Math.sin(angle2) * 8,
+                  vx: Math.cos(angle2) * speed,
+                  vy: Math.sin(angle2) * speed,
+                  baseVx: Math.cos(angle2) * p.baseVx,
+                  baseVy: Math.sin(angle2) * p.baseVy,
+                  radius: Math.max(0.65, rScaled),
+                  baseRadius: Math.max(0.65, brScaled),
+                  colorBlend: 1.0,
+                  wobbleTimer: p.wobbleTimer,
+                  colorPrefix: 'rgba(255, 0, 240,', // opposite split polarization!
+                  flockable: p.flockable,
+                  life: p.life * 0.9,
+                  birthProgress: 1.0,
+                  deathProgress: 0,
+                  isDying: false,
+                  behaviorState: p.behaviorState,
+                  behaviorTimer: p.behaviorTimer,
+                  speedFactor: p.speedFactor,
+                  isNursery: p.isNursery,
+                  isLassoed: false
+                };
+                
+                engine.world.particles.push(p1, p2);
+              }
+            }
+            break; // Stop checking other rifts for this particle
+          }
+        }
+      }
+
       // Attract a small fraction of stars to the trigger dot when the panel is closed to hint at its existence
       if (!engine.world.isSandboxOpen && p.flockable && !p.isDying && p.birthProgress >= 1.0) {
         const triggerX = width - 41;
@@ -1512,8 +1805,11 @@ export function draw(engine: CosmicCanvasEngine): void {
 
         // Gentle border containment force to steer them back if they drift too close to the edges
         const border = 120;
+        const panelWidth = width <= 600 ? 280 : 380;
+        const activeWidth = engine.world.isSandboxOpen ? Math.max(100, width - panelWidth) : width;
+
         if (p.x < border) flockForceX += (border - p.x) * 0.0008;
-        else if (p.x > width - border) flockForceX -= (p.x - (width - border)) * 0.0008;
+        else if (p.x > activeWidth - border) flockForceX -= (p.x - (activeWidth - border)) * 0.0008;
 
         if (p.y < border) flockForceY += (border - p.y) * 0.0008;
         else if (p.y > height - border) flockForceY -= (p.y - (height - border)) * 0.0008;
@@ -1572,24 +1868,33 @@ export function draw(engine: CosmicCanvasEngine): void {
 
       // G. Decelerate / Spring back to base velocities (spring drag)
       if (!inFormation && !inLoadingRing) {
-      const dragFactor = engine.world.state === 'DRIFT' ? 0.008 : 0.035;
-      p.vx += (p.baseVx - p.vx) * dragFactor;
-      p.vy += (p.baseVy - p.vy) * dragFactor;
+        const dragFactor = engine.world.state === 'DRIFT' ? 0.008 : 0.035;
+        p.vx += (p.baseVx - p.vx) * dragFactor;
+        p.vy += (p.baseVy - p.vy) * dragFactor;
 
-      // Update positions
-      p.x += p.vx * p.speedFactor;
-      p.y += p.vy * p.speedFactor;
+        // Update positions
+        p.x += p.vx * p.speedFactor;
+        p.y += p.vy * p.speedFactor;
 
-      // Wrap boundaries
-      const padding = 20;
-      if (p.x < -padding) p.x = width + padding;
-      else if (p.x > width + padding) p.x = -padding;
+        const panelWidth = width <= 600 ? 280 : 380;
+        const activeWidth = engine.world.isSandboxOpen ? Math.max(100, width - panelWidth) : width;
 
-      if (p.y < -padding) p.y = height + padding;
-      else if (p.y > height + padding) p.y = -padding;
+        // If the side panel is open, slide any particles behind it to the left visible area
+        if (engine.world.isSandboxOpen && p.x > activeWidth) {
+          p.x = Math.max(-10, p.x - 3.5);
+          p.vx = Math.min(p.vx, -0.6);
+        }
 
-      // Decay color blend
-      p.colorBlend *= 0.94;
+        // Wrap boundaries
+        const padding = 20;
+        if (p.x < -padding) p.x = activeWidth + padding;
+        else if (p.x > activeWidth + padding) p.x = -padding;
+
+        if (p.y < -padding) p.y = height + padding;
+        else if (p.y > height + padding) p.y = -padding;
+
+        // Decay color blend
+        p.colorBlend *= 0.94;
       } else if (inFormation || inLoadingRing) {
         p.colorBlend = Math.max(p.colorBlend, inLoadingRing ? 0.75 : 0.95);
       }

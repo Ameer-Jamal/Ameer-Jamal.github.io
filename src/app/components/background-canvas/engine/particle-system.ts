@@ -1,10 +1,3 @@
-import {
-  downgradeTier,
-  getProfileForTier,
-  PerformanceTier,
-  resolvePerformanceProfile,
-  upgradeTier
-} from '../../../utils/performance-profile';
 import { CONSTELLATION_TEMPLATES } from '../models/constellation-templates';
 import { COSMIC_CONSTANTS } from '../models/cosmic.constants';
 import {
@@ -93,7 +86,7 @@ export function spawnStellarBirth(engine: CosmicCanvasEngine, x: number, y: numb
 export function spawnNurseryStar(engine: CosmicCanvasEngine, x: number, y: number): void {
     const sprayAngle = Math.random() * Math.PI * 2;
     const offset = Math.random() * 14;
-    spawnStellarBirth(engine, 
+    spawnStellarBirth(engine,
       x + Math.cos(sprayAngle) * offset,
       y + Math.sin(sprayAngle) * offset,
       { nursery: true, sprayAngle }
@@ -152,7 +145,7 @@ export function initParticles(engine: CosmicCanvasEngine): void {
     const width = window.innerWidth;
     const height = window.innerHeight;
     const area = width * height;
-    
+
     const targetCount = Math.min(getMaxParticles(engine.world), Math.floor(area / COSMIC_CONSTANTS.PARTICLE_DENSITY));
     const count = Math.max(35, targetCount);
 

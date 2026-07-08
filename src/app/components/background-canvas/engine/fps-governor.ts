@@ -2,21 +2,10 @@ import {
   downgradeTier,
   getProfileForTier,
   PerformanceTier,
-  resolvePerformanceProfile,
   upgradeTier
 } from '../../../utils/performance-profile';
-import { CONSTELLATION_TEMPLATES } from '../models/constellation-templates';
 import { COSMIC_CONSTANTS } from '../models/cosmic.constants';
-import {
-  BackgroundGalaxy,
-  GameState,
-  MousePower,
-  Particle,
-  SandboxBlackhole,
-  SandboxChargeTier
-} from '../models/cosmic.types';
 import type { CosmicCanvasEngine } from './cosmic-canvas-engine';
-import { getMaxNurseryStars, getMaxParticles, getScaledConnectionDistance } from './cosmic-world';
 
 import { resizeCanvas, initStars, initGalaxies } from './background-layers';
 import { adjustParticlePopulation, initParticles } from './particle-system';

@@ -1,22 +1,8 @@
-import {
-  downgradeTier,
-  getProfileForTier,
-  PerformanceTier,
-  resolvePerformanceProfile,
-  upgradeTier
-} from '../../../utils/performance-profile';
-import { CONSTELLATION_TEMPLATES } from '../models/constellation-templates';
 import { COSMIC_CONSTANTS } from '../models/cosmic.constants';
 import {
-  BackgroundGalaxy,
   GameState,
-  MousePower,
-  Particle,
-  SandboxBlackhole,
-  SandboxChargeTier
 } from '../models/cosmic.types';
 import type { CosmicCanvasEngine } from './cosmic-canvas-engine';
-import { getMaxNurseryStars, getMaxParticles, getScaledConnectionDistance } from './cosmic-world';
 
 import { spawnStellarBirth } from './particle-system';
 import { spawnEasterEggConstellation } from './effects';
@@ -57,7 +43,7 @@ export function usesDefaultMouseGravity(engine: CosmicCanvasEngine): boolean {
 export function transitionTo(engine: CosmicCanvasEngine, newState: GameState): void {
     engine.world.state = newState;
     (engine.world as any).lastStateTickTime = typeof performance === 'undefined' ? Date.now() : performance.now();
-    
+
     if (newState === 'EXPLODING') {
       engine.world.stateTimer = 40; // Cooldown frames
     } else if (newState === 'SINGULARITY') {
@@ -99,7 +85,7 @@ export function triggerRandomStopAction(engine: CosmicCanvasEngine): void {
       transitionTo(engine, 'SINGULARITY');
     } else {
       transitionTo(engine, 'EXPLODING');
-      
+
       if (chosen === 'supernova') {
         triggerSupernovaBurst(engine);
       } else if (chosen === 'lightning') {
@@ -205,7 +191,7 @@ export function triggerTeslaDischarge(engine: CosmicCanvasEngine): void {
       const dx = p.x - engine.world.mouse.x;
       const dy = p.y - engine.world.mouse.y;
       const dist = sorted[i].dist || 1;
-      
+
       // Electric kick with chaotic deflection angle and speed
       const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.8;
       const speed = 12.0 * (Math.random() * 0.4 + 0.8);
@@ -217,7 +203,7 @@ export function triggerTeslaDischarge(engine: CosmicCanvasEngine): void {
       const steps = 4;
       const cx = engine.world.mouse.x;
       const cy = engine.world.mouse.y;
-      
+
       for (let s = 0; s <= steps; s++) {
         const t = s / steps;
         const baseOffset = 18;
@@ -253,10 +239,10 @@ export function blastParticlesAway(engine: CosmicCanvasEngine, x: number, y: num
 
       if (dist < COSMIC_CONSTANTS.EXPLOSION_RADIUS) {
         const force = (COSMIC_CONSTANTS.EXPLOSION_RADIUS - dist) / COSMIC_CONSTANTS.EXPLOSION_RADIUS;
-        
-        const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 3.6; 
+
+        const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 3.6;
         const speed = force * multiplier * (Math.random() * 1.5 + 0.3);
-        
+
         p.vx = Math.cos(angle) * speed;
         p.vy = Math.sin(angle) * speed;
         p.colorBlend = 1.0;

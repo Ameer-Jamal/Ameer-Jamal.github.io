@@ -1,22 +1,4 @@
-import {
-  downgradeTier,
-  getProfileForTier,
-  PerformanceTier,
-  resolvePerformanceProfile,
-  upgradeTier
-} from '../../../utils/performance-profile';
-import { CONSTELLATION_TEMPLATES } from '../models/constellation-templates';
-import { COSMIC_CONSTANTS } from '../models/cosmic.constants';
-import {
-  BackgroundGalaxy,
-  GameState,
-  MousePower,
-  Particle,
-  SandboxBlackhole,
-  SandboxChargeTier
-} from '../models/cosmic.types';
 import type { CosmicCanvasEngine } from './cosmic-canvas-engine';
-import { getMaxNurseryStars, getMaxParticles, getScaledConnectionDistance } from './cosmic-world';
 
 import { triggerRandomStopAction, isSandboxPowerEngaged, isMouseGravityActive, transitionTo, pauseMouseGravity, triggerNormalClickShockwave, triggerSuperMoveExplosion } from './state-machine';
 import { handleSandboxPowerRelease } from './sandbox-powers';
@@ -137,7 +119,7 @@ export function onPointerMove(engine: CosmicCanvasEngine, event: PointerEvent): 
     }
 
     engine.world.mouse.active = true;
-    
+
     if (engine.world.activePower === 'STELLAR_LASSO' && engine.world.isMouseDown) {
       engine.world.lassoPath.push({ x: curX, y: curY });
       if (engine.world.lassoPath.length > 180) {
@@ -232,7 +214,7 @@ export function onPointerDown(engine: CosmicCanvasEngine, event: PointerEvent): 
     engine.world.isMouseDown = true;
     engine.world.chargeTime = 0;
     engine.world.teslaHoldZapTimer = 0;
-    
+
     if (engine.world.activePower === 'STELLAR_LASSO') {
       engine.world.lassoPath = [{ x: engine.world.mouse.x, y: engine.world.mouse.y }];
     }
@@ -370,21 +352,21 @@ export function onMouseUp(engine: CosmicCanvasEngine, event: MouseEvent): void {
 
 export function onLogoBlackholeTrigger(engine: CosmicCanvasEngine): void {
     if (engine.world.state === 'SINGULARITY' || engine.world.state === 'MOON_DANCE' || engine.world.state === 'AYA_FORMATION' || engine.world.state === 'LOADING' || engine.world.isLogoBlackholeActive || engine.world.isAyaDanceActive) return;
-    
+
     // Find logo coordinates relative to canvas layout
     const logoImg = document.querySelector('.logoImg') || document.querySelector('.logo');
     let logoX = window.innerWidth / 2;
     let logoY = 120;
-    
+
     if (logoImg) {
       const rect = logoImg.getBoundingClientRect();
       const canvas = engine.world.canvas;
       const canvasRect = canvas.getBoundingClientRect();
-      
+
       logoX = rect.left + rect.width / 2 - canvasRect.left;
       logoY = rect.top + rect.height / 2 - canvasRect.top;
     }
-    
+
     if (typeof document !== 'undefined' && document.body.classList.contains('is-aya-message')) {
       const customSpawn = (window as any).__ayaSpawnHearts;
       if (customSpawn) {

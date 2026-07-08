@@ -249,6 +249,7 @@ describe('BackgroundCanvasComponent', () => {
 
   it('should spawn mini supernovae upon particle death progress completion', () => {
     const initialShockwavesLength = w().shockwaves.length;
+    spyOn(Math, 'random').and.returnValue(0.5);
 
     // Lifecycle (death progress) only advances outside LOADING/MOON_DANCE/AYA_FORMATION.
     // The component briefly sits in LOADING after init, so pin the state for determinism.

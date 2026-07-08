@@ -20,6 +20,13 @@ import { getMaxNurseryStars, getMaxParticles, getScaledConnectionDistance } from
 
 import { isSandboxPowerChannelActive } from './state-machine';
 
+function getLayerDimensions(engine: CosmicCanvasEngine): { width: number; height: number } {
+    return {
+      width: engine.world.canvasWidth || window.innerWidth,
+      height: engine.world.canvasHeight || window.innerHeight
+    };
+  }
+
 export function resizeCanvas(engine: CosmicCanvasEngine): void {
     const canvas = engine.world.canvas;
     const dprCap = engine.world.performanceProfile?.dprCap ?? 2;
@@ -39,8 +46,7 @@ export function resizeCanvas(engine: CosmicCanvasEngine): void {
 
 
 export function initNebulas(engine: CosmicCanvasEngine): void {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const { width, height } = getLayerDimensions(engine);
     // Generate 5 colorful drifting nebulas in the background with detailed base colors and opacities
     engine.world.nebulas = [
       { x: width * 0.25, y: height * 0.35, baseX: width * 0.25, baseY: height * 0.35, radius: Math.min(width, height) * 0.60, colorBase: '0, 80, 255', maxOpacity: 0.05, phase: Math.random() * 100, scalePhase: Math.random() * 100 },
@@ -53,8 +59,7 @@ export function initNebulas(engine: CosmicCanvasEngine): void {
 
 
 export function initStars(engine: CosmicCanvasEngine): void {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const { width, height } = getLayerDimensions(engine);
     const area = width * height;
     const starCount = Math.floor(area / engine.world.performanceProfile.backgroundStarDivisor); 
 
@@ -109,8 +114,7 @@ export function initStars(engine: CosmicCanvasEngine): void {
 
 
 export function initGalaxies(engine: CosmicCanvasEngine): void {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const { width, height } = getLayerDimensions(engine);
     
     const galaxyMult = engine.world.performanceProfile.galaxyStarMultiplier;
     const scaleGalaxyStars = (base: number) => Math.max(20, Math.floor(base * galaxyMult));
@@ -344,4 +348,3 @@ export function updateUIAnchors(engine: CosmicCanvasEngine): void {
 
     engine.world.uiAnchors = temp;
   }
-

@@ -7,6 +7,7 @@ import { findNearestParticleIndices } from './engine/particle-system';
 import { findRandomNearbyParticle } from './engine/particle-system';
 import { initParticles } from './engine/particle-system';
 import { initStars } from './engine/background-layers';
+import { initGalaxies } from './engine/background-layers';
 import { resizeCanvas } from './engine/background-layers';
 import { tickFpsGovernor } from './engine/fps-governor';
 import { transitionTo } from './engine/state-machine';
@@ -79,6 +80,30 @@ describe('BackgroundCanvasComponent', () => {
     const highStars = w().backgroundStars.length;
 
     expect(highStars).toBeGreaterThan(lowStars);
+  });
+
+  it('should initialize background layers from measured canvas size instead of window size', () => {
+    spyOnProperty(window, 'innerWidth', 'get').and.returnValue(1200);
+    spyOnProperty(window, 'innerHeight', 'get').and.returnValue(900);
+    spyOn(component.canvasRef.nativeElement, 'getBoundingClientRect').and.returnValue({
+      left: 0,
+      top: 0,
+      right: 320,
+      bottom: 180,
+      width: 320,
+      height: 180,
+      x: 0,
+      y: 0,
+      toJSON: () => {}
+    } as DOMRect);
+
+    resizeCanvas(eng(), );
+    initStars(eng(), );
+    initGalaxies(eng(), );
+
+    expect(w().backgroundStars.length).toBeGreaterThan(0);
+    expect(w().backgroundStars.every((star) => star.x >= 0 && star.x <= 320 && star.y >= 0 && star.y <= 180)).toBeTrue();
+    expect(w().backgroundGalaxies.every((galaxy) => galaxy.x <= 320 && galaxy.y <= 180)).toBeTrue();
   });
 
   it('should downgrade performance tier when sustained FPS is low', () => {

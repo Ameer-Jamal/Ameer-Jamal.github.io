@@ -36,6 +36,8 @@ export { TOOLS_LIST };
 export class CosmicCanvasEngine {
   readonly world: CosmicWorld;
   private animateBound = () => this.animate();
+  private resizeObserver: ResizeObserver | null = null;
+  private resizeObserverFrameId: number | null = null;
 
   constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
     this.world = createCosmicWorld(canvas, ctx);
@@ -53,11 +55,19 @@ export class CosmicCanvasEngine {
     if (!shouldSkipLoadingSequence()) {
       beginLoadingSequence(this);
     }
+    this.observeCanvasSize();
+    this.queueLayoutResizeCheck();
     this.animate();
   }
 
   destroy(): void {
     stopAnimationLoop(this);
+    if (this.resizeObserverFrameId !== null) {
+      cancelAnimationFrame(this.resizeObserverFrameId);
+      this.resizeObserverFrameId = null;
+    }
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
   }
 
   startAnimation(): void {
@@ -111,4 +121,34 @@ export class CosmicCanvasEngine {
   public onMouseUp(event: MouseEvent): void { onMouseUp(this, event); }
   public onLogoBlackholeTrigger(): void { onLogoBlackholeTrigger(this); }
   public onAyaKeyDown(event: KeyboardEvent): void { onAyaKeyDown(this, event); }
+
+  private observeCanvasSize(): void {
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = new ResizeObserver(() => {
+      this.queueLayoutResizeCheck();
+    });
+    this.resizeObserver.observe(this.world.canvas);
+  }
+
+  private queueLayoutResizeCheck(): void {
+    if (this.resizeObserverFrameId !== null) {
+      cancelAnimationFrame(this.resizeObserverFrameId);
+    }
+
+    this.resizeObserverFrameId = requestAnimationFrame(() => {
+      this.resizeObserverFrameId = null;
+      const rect = this.world.canvas.getBoundingClientRect();
+      const width = rect.width || window.innerWidth;
+      const height = rect.height || window.innerHeight;
+      const sizeChanged = Math.abs(width - this.world.canvasWidth) > 1 || Math.abs(height - this.world.canvasHeight) > 1;
+
+      if (sizeChanged) {
+        this.handleResize();
+      }
+    });
+  }
 }

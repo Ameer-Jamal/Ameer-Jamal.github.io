@@ -397,41 +397,102 @@ export function updateAndDrawSandboxElements(engine: CosmicCanvasEngine, width: 
       const pulse = Math.sin(wh.pulsePhase) * 4;
       const radius = wh.radius + pulse;
 
-      const grad = engine.world.ctx.createRadialGradient(wh.x, wh.y, 2, wh.x, wh.y, radius * 1.5);
+      // A. Portal Core Void Fill
+      const grad = engine.world.ctx.createRadialGradient(wh.x, wh.y, 2, wh.x, wh.y, radius * 1.6);
       const colorStr = wh.type === 'ENTRY' ? '0, 240, 255' : '255, 100, 230';
-      grad.addColorStop(0, `rgba(10, 15, 30, 0.9)`);
-      grad.addColorStop(0.5, `rgba(${colorStr}, 0.5)`);
+      grad.addColorStop(0, `rgba(4, 2, 10, 0.96)`);
+      grad.addColorStop(0.35, `rgba(${colorStr}, 0.5)`);
+      grad.addColorStop(0.85, `rgba(${colorStr}, 0.12)`);
       grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
 
       engine.world.ctx.fillStyle = grad;
       engine.world.ctx.beginPath();
-      engine.world.ctx.arc(wh.x, wh.y, radius * 1.5, 0, Math.PI * 2);
+      engine.world.ctx.arc(wh.x, wh.y, radius * 1.6, 0, Math.PI * 2);
       engine.world.ctx.fill();
 
+      // B. Multi-layered Glowing Horizon Rings
       engine.world.ctx.beginPath();
       engine.world.ctx.arc(wh.x, wh.y, radius, 0, Math.PI * 2);
       engine.world.ctx.strokeStyle = `rgba(${colorStr}, 0.85)`;
-      engine.world.ctx.lineWidth = 2.5;
+      engine.world.ctx.lineWidth = 3.0;
       engine.world.ctx.stroke();
 
       engine.world.ctx.beginPath();
-      for (let j = 0; j < 4; j++) {
-        const spiralAngle = wh.pulsePhase + (j * Math.PI) / 2;
-        const sx = wh.x + Math.cos(spiralAngle) * (radius * 0.7);
-        const sy = wh.y + Math.sin(spiralAngle) * (radius * 0.7);
-        engine.world.ctx.moveTo(wh.x, wh.y);
-        engine.world.ctx.quadraticCurveTo(wh.x + Math.sin(spiralAngle)*radius*0.4, wh.y + Math.cos(spiralAngle)*radius*0.4, sx, sy);
-      }
-      engine.world.ctx.strokeStyle = `rgba(${colorStr}, 0.45)`;
-      engine.world.ctx.lineWidth = 1.0;
+      engine.world.ctx.arc(wh.x, wh.y, radius * 1.25 + Math.sin(wh.pulsePhase * 1.5) * 3, 0, Math.PI * 2);
+      engine.world.ctx.strokeStyle = `rgba(${colorStr}, 0.35)`;
+      engine.world.ctx.lineWidth = 1.5;
       engine.world.ctx.stroke();
+
+      // C. Swirling vortex curves (6-arm rotating galaxy spiral)
+      engine.world.ctx.save();
+      const armCount = 6;
+      for (let j = 0; j < armCount; j++) {
+        engine.world.ctx.beginPath();
+        const baseAngle = wh.pulsePhase * 1.4 + (j * Math.PI * 2) / armCount;
+        
+        engine.world.ctx.moveTo(wh.x, wh.y);
+        const midAngle = baseAngle + 0.5;
+        const midR = radius * 0.55;
+        const endAngle = baseAngle + 1.1;
+        const endR = radius * 1.15;
+        
+        const controlX = wh.x + Math.cos(midAngle) * midR;
+        const controlY = wh.y + Math.sin(midAngle) * midR;
+        const endX = wh.x + Math.cos(endAngle) * endR;
+        const endY = wh.y + Math.sin(endAngle) * endR;
+        
+        engine.world.ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+        engine.world.ctx.strokeStyle = `rgba(${colorStr}, ${0.55 - (j % 2) * 0.2})`;
+        engine.world.ctx.lineWidth = 1.8 - (j % 2) * 0.6;
+        engine.world.ctx.stroke();
+      }
+      engine.world.ctx.restore();
     }
 
     if (engine.world.wormholes.length === 2 && hypergateActive) {
       const entry = engine.world.wormholes[0];
+      const exit = engine.world.wormholes[1];
+
+      // Draw a pulsing connection beam between entry and exit!
+      engine.world.ctx.save();
+      engine.world.ctx.beginPath();
+      engine.world.ctx.moveTo(entry.x, entry.y);
+      engine.world.ctx.lineTo(exit.x, exit.y);
+      engine.world.ctx.strokeStyle = `rgba(0, 240, 255, ${0.15 + Math.sin(Date.now() / 60) * 0.08})`;
+      engine.world.ctx.lineWidth = 8.0;
+      engine.world.ctx.stroke();
+
+      // Draw a thin arcing electrical core
+      engine.world.ctx.beginPath();
+      const segments = 12;
+      engine.world.ctx.moveTo(entry.x, entry.y);
+      for (let s = 1; s < segments; s++) {
+        const t = s / segments;
+        const ox = (Math.random() - 0.5) * 6.0;
+        const oy = (Math.random() - 0.5) * 6.0;
+        engine.world.ctx.lineTo(
+          entry.x + (exit.x - entry.x) * t + ox,
+          entry.y + (exit.y - entry.y) * t + oy
+        );
+      }
+      engine.world.ctx.lineTo(exit.x, exit.y);
+      engine.world.ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      engine.world.ctx.lineWidth = 1.5;
+      engine.world.ctx.stroke();
+      engine.world.ctx.restore();
+
+      // Render pulsing active rings
       engine.world.ctx.beginPath();
       engine.world.ctx.arc(entry.x, entry.y, entry.radius * 2.2, 0, Math.PI * 2);
-      engine.world.ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+      engine.world.ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+      engine.world.ctx.lineWidth = 2;
+      engine.world.ctx.setLineDash([8, 10]);
+      engine.world.ctx.stroke();
+      engine.world.ctx.setLineDash([]);
+      
+      engine.world.ctx.beginPath();
+      engine.world.ctx.arc(exit.x, exit.y, exit.radius * 2.2, 0, Math.PI * 2);
+      engine.world.ctx.strokeStyle = 'rgba(255, 100, 230, 0.4)';
       engine.world.ctx.lineWidth = 2;
       engine.world.ctx.setLineDash([8, 10]);
       engine.world.ctx.stroke();

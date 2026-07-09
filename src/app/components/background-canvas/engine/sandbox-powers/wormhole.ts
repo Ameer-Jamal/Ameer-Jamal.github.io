@@ -54,7 +54,7 @@ export function applyWormholeForcesToParticle(engine: CosmicCanvasEngine, p: Par
     const hypergateActive = engine.world.wormholeHypergateTimer > 0;
 
     // Noticeable gravity pull reach and strength
-    const entryReach = 240 * (hypergateActive ? 1.8 : 1);
+    const entryReach = 300 * (hypergateActive ? 1.8 : 1);
     const dx = entry.x - p.x;
     const dy = entry.y - p.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -81,7 +81,7 @@ export function placeWormholePortal(engine: CosmicCanvasEngine): void {
       engine.world.wormholes.push({
         x: engine.world.mouse.x,
         y: engine.world.mouse.y,
-        radius: 30,
+        radius: 42,
         type,
         pulsePhase: Math.random() * Math.PI
       });

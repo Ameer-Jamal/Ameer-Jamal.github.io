@@ -147,7 +147,8 @@ export function handleSandboxPowerRelease(engine: CosmicCanvasEngine): void {
 
     switch (engine.world.activePower) {
       case 'BLACK_HOLE':
-        spawnSandboxBlackhole(engine, engine.world.mouse.x, engine.world.mouse.y, tier);
+        const chargeProgress = engine.world.chargeTime / 60;
+        spawnSandboxBlackhole(engine, engine.world.mouse.x, engine.world.mouse.y, tier, chargeProgress);
         break;
       case 'TESLA_DISCHARGE':
         triggerTeslaDischargePower(engine, tier === 'tap' ? 'tap' : tier === 'charged' ? 'charged' : 'super');

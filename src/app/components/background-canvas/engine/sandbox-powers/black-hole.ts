@@ -5,53 +5,62 @@ import { spawnMiniSupernova } from '../particle-system';
 import { playBlackHoleConsumeSound } from '../audio';
 import { getSandboxChargeProgress } from './charge';
 import { tryWormholeCapture } from './wormhole';
+import { drawCosmicBlackHole } from '../frame/shared';
 
-export function spawnSandboxBlackhole(engine: CosmicCanvasEngine, x: number, y: number, tier: SandboxChargeTier): void {
+export function spawnSandboxBlackhole(
+  engine: CosmicCanvasEngine, 
+  x: number, 
+  y: number, 
+  tier: SandboxChargeTier,
+  chargeProgress: number
+): void {
     const activeBHs = engine.world.sandboxBlackholes.filter(bh => !bh.isDying);
     if (activeBHs.length >= 4) {
       activeBHs[0].isDying = true;
     }
 
+    let baseMaxRadius = 20;
+    let pullRadius = 340;
+    let gravityStrength = 1.2;
+
     if (tier === 'tap') {
-      engine.world.sandboxBlackholes.push({
-        x,
-        y,
-        radius: 0,
-        maxRadius: Math.random() * 8 + 18,
-        timer: 0,
-        maxTimer: 600,
-        pullRadius: 340,
-        gravityStrength: 1.2
-      });
-      return;
+      baseMaxRadius = 20;
+      pullRadius = 340;
+      gravityStrength = 1.2;
+    } else if (tier === 'charged') {
+      baseMaxRadius = 32;
+      pullRadius = 460;
+      gravityStrength = 2.4;
+      engine.world.shakeTimer = Math.max(engine.world.shakeTimer, 8);
+    } else {
+      // tier === 'super'
+      baseMaxRadius = 45;
+      pullRadius = 560;
+      gravityStrength = 3.5;
+      engine.world.shakeTimer = 22;
     }
 
-    if (tier === 'charged') {
-      engine.world.sandboxBlackholes.push({
-        x,
-        y,
-        radius: 0,
-        maxRadius: Math.random() * 7 + 28,
-        timer: 0,
-        maxTimer: 720,
-        pullRadius: 460,
-        gravityStrength: 2.4
-      });
-      engine.world.shakeTimer = Math.max(engine.world.shakeTimer, 8);
-      return;
+    let maxRadius = baseMaxRadius;
+
+    // Bounded and dampened scale-up beyond normal limits if held longer
+    if (chargeProgress > 1.0) {
+      const multiplier = Math.min(2.0, 1.0 + (chargeProgress - 1.0) * 0.45);
+      maxRadius *= multiplier;
+      pullRadius *= multiplier;
+      gravityStrength *= multiplier;
+      engine.world.shakeTimer = Math.min(36, Math.max(engine.world.shakeTimer, Math.floor(22 * multiplier)));
     }
 
     engine.world.sandboxBlackholes.push({
       x,
       y,
       radius: 0,
-      maxRadius: Math.random() * 15 + 40,
+      maxRadius,
       timer: 0,
-      maxTimer: 900,
-      pullRadius: 560,
-      gravityStrength: 3.5
+      maxTimer: Math.max(900, Math.floor(900 * Math.min(2.5, chargeProgress))),
+      pullRadius,
+      gravityStrength
     });
-    engine.world.shakeTimer = 22;
   }
 
 export function applyBlackHolePreviewGravity(engine: CosmicCanvasEngine): void {
@@ -88,29 +97,53 @@ export function drawBlackHolePreview(engine: CosmicCanvasEngine): void {
       return;
     }
 
-    const charge = getSandboxChargeProgress(engine);
-    const previewRadius = 14 + charge * 28;
-    const pullRadius = 280 + charge * 220;
-    const pulse = Math.sin(Date.now() / 80) * previewRadius * 0.15;
+    const charge = engine.world.chargeTime / 60;
+    
+    // 1:1 Dimension tracking formula matching the final spawned elements
+    let baseRadius = 20;
+    let pullRadius = 340;
+    if (charge >= 1.0) {
+      baseRadius = 45;
+      pullRadius = 560;
+    } else if (charge >= 0.2) {
+      baseRadius = 32;
+      pullRadius = 460;
+    } else {
+      baseRadius = 20;
+      pullRadius = 340;
+    }
+
+    let previewRadius = baseRadius;
+    if (charge > 1.0) {
+      const multiplier = Math.min(2.0, 1.0 + (charge - 1.0) * 0.45);
+      previewRadius *= multiplier;
+      pullRadius *= multiplier;
+    } else {
+      // Smooth interpolation during initial charging up to the base sizes
+      if (charge < 0.2) {
+        previewRadius = 14 + (charge / 0.2) * 6;
+        pullRadius = 280 + (charge / 0.2) * 60;
+      } else {
+        previewRadius = 20 + ((charge - 0.2) / 0.8) * 25;
+        pullRadius = 340 + ((charge - 0.2) / 0.8) * 220;
+      }
+    }
 
     engine.world.ctx.beginPath();
     engine.world.ctx.arc(engine.world.mouse.x, engine.world.mouse.y, pullRadius, 0, Math.PI * 2);
-    engine.world.ctx.strokeStyle = `rgba(230, 100, 255, ${0.12 + charge * 0.22})`;
+    engine.world.ctx.strokeStyle = `rgba(0, 240, 255, ${0.12 + Math.min(1.0, charge) * 0.22})`;
     engine.world.ctx.lineWidth = 1.5;
     engine.world.ctx.setLineDash([10, 14]);
     engine.world.ctx.stroke();
     engine.world.ctx.setLineDash([]);
 
-    engine.world.ctx.beginPath();
-    engine.world.ctx.arc(engine.world.mouse.x, engine.world.mouse.y, previewRadius + pulse, 0, Math.PI * 2);
-    engine.world.ctx.fillStyle = `rgba(2, 4, 10, ${0.75 + charge * 0.2})`;
-    engine.world.ctx.fill();
-
-    engine.world.ctx.beginPath();
-    engine.world.ctx.arc(engine.world.mouse.x, engine.world.mouse.y, previewRadius * 1.6 + pulse, 0, Math.PI * 2);
-    engine.world.ctx.strokeStyle = `rgba(0, 240, 255, ${0.35 + charge * 0.45})`;
-    engine.world.ctx.lineWidth = 2;
-    engine.world.ctx.stroke();
+    drawCosmicBlackHole(
+      engine.world.ctx,
+      engine.world.mouse.x,
+      engine.world.mouse.y,
+      previewRadius,
+      Math.min(1.0, 0.75 + charge * 0.25)
+    );
   }
 
 export function applySandboxBlackholeForces(engine: CosmicCanvasEngine, p: Particle, sbh: SandboxBlackhole): void {

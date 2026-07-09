@@ -6,12 +6,13 @@ import { draw } from './engine/draw-frame';
 import { findNearestParticleIndices } from './engine/particle-system';
 import { findRandomNearbyParticle } from './engine/particle-system';
 import { initParticles } from './engine/particle-system';
+import { isIntenseParticleMesh } from './engine/particle-system';
 import { initStars } from './engine/background-layers';
 import { initGalaxies } from './engine/background-layers';
 import { resizeCanvas } from './engine/background-layers';
 import { tickFpsGovernor } from './engine/fps-governor';
 import { transitionTo } from './engine/state-machine';
-import { tryWormholeCapture, clearSandboxElements, releaseStellarLassoPower } from './engine/sandbox-powers';
+import { tryWormholeCapture, clearSandboxElements, releaseStellarLassoPower, updateAndDrawSandboxElements } from './engine/sandbox-powers';
 import { spawnSandboxMeteor, explodeMeteor, updateAndDrawMeteors } from './engine/sandbox-powers';
 
 describe('BackgroundCanvasComponent', () => {
@@ -60,6 +61,9 @@ describe('BackgroundCanvasComponent', () => {
   });
 
   it('should cap particle count according to the active performance tier', () => {
+    spyOnProperty(window, 'innerWidth', 'get').and.returnValue(1920);
+    spyOnProperty(window, 'innerHeight', 'get').and.returnValue(1080);
+
     eng().applyPerformanceTier('low');
     initParticles(eng(), );
     expect(w().particles.length).toBeLessThanOrEqual(70);
@@ -1036,9 +1040,35 @@ describe('BackgroundCanvasComponent', () => {
       w().mouse.x = 200;
       w().mouse.y = 200;
       w().mouse.active = true;
+      w().lassoPath = [
+        { x: 180, y: 180 },
+        { x: 240, y: 180 },
+        { x: 240, y: 240 },
+        { x: 180, y: 240 }
+      ];
       w().particles = [{
         x: 210,
         y: 210,
+        vx: 1,
+        vy: 1,
+        baseVx: 1,
+        baseVy: 1,
+        radius: 3,
+        baseRadius: 3,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(0, 240, 255, ',
+        flockable: true,
+        life: 1.0,
+        birthProgress: 1.0,
+        deathProgress: 0,
+        isDying: false,
+        behaviorState: 'CRUISE',
+        behaviorTimer: 100,
+        speedFactor: 1.0
+      }, {
+        x: 320,
+        y: 320,
         vx: 1,
         vy: 1,
         baseVx: 1,
@@ -1061,6 +1091,7 @@ describe('BackgroundCanvasComponent', () => {
       // Run draw to trigger particle pull/lasso loop
       draw(eng());
       expect(w().particles[0].isLassoed).toBe(true);
+      expect(w().particles[1].isLassoed).toBeFalsy();
 
       // Release lasso
       releaseStellarLassoPower(eng(), 'tap');
@@ -1084,6 +1115,135 @@ describe('BackgroundCanvasComponent', () => {
       expect(w().quantumRifts[0].y1).toBe(100);
       expect(w().quantumRifts[0].x2).toBe(120);
       expect(w().quantumRifts[0].y2).toBe(125);
+    });
+
+    it('should keep slow straight quantum splitter drags segmented but capped', () => {
+      w().activePower = 'QUANTUM_SPLITTER';
+      w().isMouseDown = true;
+      w().mouse.x = 100;
+      w().mouse.y = 100;
+
+      for (let x = 110; x <= 220; x += 10) {
+        eng().onPointerMove(new PointerEvent('pointermove', { clientX: x, clientY: 100 }));
+      }
+
+      expect(w().quantumRifts.length).toBeGreaterThan(1);
+      expect(w().quantumRifts.length).toBeLessThanOrEqual(12);
+      expect(w().quantumRifts[0].x1).toBe(100);
+      expect(w().quantumRifts.at(-1)?.x2).toBe(220);
+    });
+
+    it('should treat active quantum rifts as an intense mesh even when the panel is closed', () => {
+      w().isSandboxOpen = false;
+      w().activePower = 'QUANTUM_SPLITTER';
+      w().quantumRifts = [{ x1: 0, y1: 0, x2: 100, y2: 0, life: 1.0, maxLife: 1.0 }];
+
+      expect(isIntenseParticleMesh(eng())).toBeTrue();
+    });
+
+    it('should not exceed the particle cap when quantum splitter has no room for both children', () => {
+      spyOn(Math, 'random').and.returnValue(0.5);
+      eng().applyPerformanceTier('high');
+      const maxParticles = w().performanceProfile.maxParticles;
+      const makeParticle = (x: number, y: number) => ({
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        baseVx: 0,
+        baseVy: 0,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: true,
+        life: 1,
+        birthProgress: 1,
+        deathProgress: 0,
+        isDying: false,
+        behaviorState: 'CRUISE' as const,
+        behaviorTimer: 60,
+        speedFactor: 1
+      });
+      w().particles = Array.from({ length: maxParticles - 1 }, (_, index) => makeParticle(300 + index, 300));
+      w().particles.push(makeParticle(50, 0));
+      w().quantumRifts = [{ x1: 0, y1: 0, x2: 100, y2: 0, life: 1.0, maxLife: 1.0 }];
+
+      draw(eng());
+
+      expect(w().particles.length).toBe(maxParticles);
+      expect(w().particles[w().particles.length - 1].isDying).toBeTrue();
+    });
+
+    it('should create non-flockable quantum split children when there is cap room', () => {
+      spyOn(Math, 'random').and.returnValue(0.5);
+      eng().applyPerformanceTier('high');
+      const maxParticles = w().performanceProfile.maxParticles;
+      const makeParticle = (x: number, y: number) => ({
+        x,
+        y,
+        vx: 1,
+        vy: 0,
+        baseVx: 1,
+        baseVy: 0,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: true,
+        life: 1,
+        birthProgress: 1,
+        deathProgress: 0,
+        isDying: false,
+        behaviorState: 'CRUISE' as const,
+        behaviorTimer: 60,
+        speedFactor: 1
+      });
+      w().particles = Array.from({ length: maxParticles - 3 }, (_, index) => makeParticle(300 + index, 300));
+      w().particles.push(makeParticle(50, 0));
+      w().quantumRifts = [{ x1: 0, y1: 0, x2: 100, y2: 0, life: 1.0, maxLife: 1.0 }];
+
+      draw(eng());
+
+      expect(w().particles.length).toBe(maxParticles);
+      expect(w().particles.at(-1)?.flockable).toBeTrue();
+      expect(w().particles.at(-2)?.flockable).toBeTrue();
+    });
+
+    it('should keep capped quantum rifts visually active with spark fallback', () => {
+      spyOn(Math, 'random').and.returnValue(0);
+      eng().applyPerformanceTier('high');
+      const maxParticles = w().performanceProfile.maxParticles;
+      const makeParticle = (x: number, y: number) => ({
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        baseVx: 0,
+        baseVy: 0,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: false,
+        life: 1,
+        birthProgress: 1,
+        deathProgress: 0,
+        isDying: false,
+        behaviorState: 'CRUISE' as const,
+        behaviorTimer: 60,
+        speedFactor: 1
+      });
+      w().particles = Array.from({ length: maxParticles }, (_, index) => makeParticle(300 + index, 300));
+      w().quantumRifts = [{ x1: 100, y1: 100, x2: 180, y2: 100, life: 1.0, maxLife: 1.0 }];
+
+      updateAndDrawSandboxElements(eng(), 800, 600);
+
+      expect(w().particles.length).toBe(maxParticles);
+      expect(w().sparks.length).toBeGreaterThan(0);
     });
 
     it('should clear quantum rifts on clearSandboxElements', () => {

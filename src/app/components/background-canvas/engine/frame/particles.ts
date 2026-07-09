@@ -14,6 +14,83 @@ import { playSupernovaPop, stopBlackholeHum, updatePowerChargeAudio, playWormhol
 import { getSandboxChargeProgress, tickSandboxCharge, drawSandboxPowerChargeAuras, applyBlackHolePreviewGravity, tryWormholeCapture, applyWormholeForcesToParticle, applySandboxBlackholeForces, applySandboxChronoWellForces, tickTeslaHoldZaps, updateAndDrawSandboxElements, applySandboxPlanetForces, applySandboxMeteorForces, shatterPlanet, updateAndDrawMeteors, explodeMeteor } from '../sandbox-powers';
 import { drawHeart } from './shared';
 
+function isPointInsideLassoPath(x: number, y: number, path: { x: number; y: number }[]): boolean {
+    if (path.length < 3) {
+      return false;
+    }
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const point of path) {
+      minX = Math.min(minX, point.x);
+      minY = Math.min(minY, point.y);
+      maxX = Math.max(maxX, point.x);
+      maxY = Math.max(maxY, point.y);
+    }
+
+    if (x < minX || x > maxX || y < minY || y > maxY) {
+      return false;
+    }
+
+    let inside = false;
+    for (let i = 0, j = path.length - 1; i < path.length; j = i++) {
+      const pi = path[i];
+      const pj = path[j];
+      const crosses = (pi.y > y) !== (pj.y > y);
+      if (crosses) {
+        const intersectionX = ((pj.x - pi.x) * (y - pi.y)) / ((pj.y - pi.y) || 1) + pi.x;
+        if (x < intersectionX) {
+          inside = !inside;
+        }
+      }
+    }
+
+    return inside;
+  }
+
+function distanceToPathSq(x: number, y: number, path: { x: number; y: number }[], step = 2): number {
+    let minDistSq = Infinity;
+    for (let k = 0; k < path.length - 1; k += step) {
+      const pt1 = path[k];
+      const pt2 = path[k + 1];
+      if (!pt1 || !pt2) continue;
+
+      const segDx = pt2.x - pt1.x;
+      const segDy = pt2.y - pt1.y;
+      const segLenSq = segDx * segDx + segDy * segDy;
+      if (segLenSq < 1) continue;
+
+      let t = ((x - pt1.x) * segDx + (y - pt1.y) * segDy) / segLenSq;
+      t = Math.max(0, Math.min(1, t));
+
+      const projX = pt1.x + t * segDx;
+      const projY = pt1.y + t * segDy;
+      const distSq = (x - projX) ** 2 + (y - projY) ** 2;
+      if (distSq < minDistSq) {
+        minDistSq = distSq;
+      }
+    }
+
+    return minDistSq;
+  }
+
+function getPathCenter(path: { x: number; y: number }[]): { x: number; y: number } {
+    if (path.length === 0) {
+      return { x: 0, y: 0 };
+    }
+
+    let x = 0;
+    let y = 0;
+    for (const point of path) {
+      x += point.x;
+      y += point.y;
+    }
+
+    return { x: x / path.length, y: y / path.length };
+  }
+
 export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: number, height: number, chargeProgress: number): void {
     // 10. Stellar nursery: Random births if particle count drops (maintain ecosystem)
     if (engine.world.particles.length < getMaxParticles(engine.world) && engine.world.state !== 'AYA_FORMATION' && engine.world.state !== 'LOADING' && Math.random() < 0.045) {
@@ -248,7 +325,6 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
 
     for (let i = pLength - 1; i >= 0; i--) {
       const p = engine.world.particles[i];
-      p.isLassoed = false;
 
       // A. Star Life Cycle Logic
       if (p.birthProgress < 1.0 && engine.world.state !== 'MOON_DANCE' && engine.world.state !== 'AYA_FORMATION' && engine.world.state !== 'LOADING') {
@@ -257,12 +333,12 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
 
       if (engine.world.state !== 'MOON_DANCE' && engine.world.state !== 'AYA_FORMATION' && engine.world.state !== 'LOADING') {
         if (!p.isDying) {
-          p.life -= Math.random() * 0.00007 + 0.00002;
+          p.life -= p.isQuantumRift ? Math.random() * 0.010 + 0.012 : Math.random() * 0.00007 + 0.00002;
           if (p.life <= 0.12) {
             p.isDying = true;
           }
         } else {
-          p.deathProgress += 0.015;
+          p.deathProgress += p.isQuantumRift ? 0.08 : 0.015;
           if (p.deathProgress >= 1.0) {
             if (p.isNursery) {
               engine.world.nurseryStarCount = Math.max(0, engine.world.nurseryStarCount - 1);
@@ -532,9 +608,12 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
         }
       }
 
-      // Physics wall collisions against Stellar Lasso path segments (acts as a solid containment fence!)
-      if (engine.world.activePower === 'STELLAR_LASSO' && (engine.world.isMouseDown || engine.world.lassoReleaseQueued) && engine.world.lassoPath && engine.world.lassoPath.length > 1) {
+      // Physics wall collisions against Stellar Lasso path segments. Only
+      // captured stars collide with the rope; otherwise drawing the lasso feels
+      // like it pushes nearby stars away instead of catching them.
+      if (engine.world.activePower === 'STELLAR_LASSO' && p.isLassoed && (engine.world.isMouseDown || engine.world.lassoReleaseQueued) && engine.world.lassoPath && engine.world.lassoPath.length > 3) {
         const pathLen = engine.world.lassoPath.length;
+        const pathCenter = getPathCenter(engine.world.lassoPath);
         for (let k = 0; k < pathLen - 1; k += 2) {
           const pt1 = engine.world.lassoPath[k];
           const pt2 = engine.world.lassoPath[k + 1];
@@ -554,20 +633,26 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
           
           const radiusSum = p.radius + 12.0; // thick physical containment forcefield wall
           if (distToSeg < radiusSum) {
-            const nx = (p.x - projX) / distToSeg;
-            const ny = (p.y - projY) / distToSeg;
+            const centerDx = pathCenter.x - projX;
+            const centerDy = pathCenter.y - projY;
+            const centerDist = Math.sqrt(centerDx * centerDx + centerDy * centerDy) || 1;
+            const nx = centerDx / centerDist;
+            const ny = centerDy / centerDist;
             
-            // Push out of collision
+            // Keep captured stars inside the rope boundary.
             p.x = projX + nx * radiusSum;
+            p.y = projY + ny * radiusSum;
             
-            // Reflect velocity along normal (bounce!)
+            // Damp outward velocity and bias motion back toward the loop.
             const dot = p.vx * nx + p.vy * ny;
-            p.vx = (p.vx - 2.0 * dot * nx) * 0.85;
-            p.vy = (p.vy - 2.0 * dot * ny) * 0.85;
-            
-            // Slide along the rope wall
-            p.vx += -ny * 0.4;
-            p.vy += nx * 0.4;
+            if (dot < 0) {
+              p.vx -= dot * nx * 1.25;
+              p.vy -= dot * ny * 1.25;
+            }
+            p.vx += nx * 0.35;
+            p.vy += ny * 0.35;
+            p.vx *= 0.86;
+            p.vy *= 0.86;
             
             p.colorBlend = Math.max(p.colorBlend, 0.7);
             
@@ -592,45 +677,46 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
         const isCollapsing = engine.world.lassoReleaseQueued && engine.world.lassoPath && engine.world.lassoPath.length > 0;
         
         if (isHeld || isCollapsing) {
-          let targetX = engine.world.mouse.x;
-          let targetY = engine.world.mouse.y;
+          const lassoPath = engine.world.lassoPath || [];
+          const lassoCenter = getPathCenter(lassoPath);
+          let targetX = lassoPath.length >= 3 ? lassoCenter.x : engine.world.mouse.x;
+          let targetY = lassoPath.length >= 3 ? lassoCenter.y : engine.world.mouse.y;
           
           if (isCollapsing) {
             const tip = engine.world.lassoPath[engine.world.lassoPath.length - 1];
             targetX = tip.x;
             targetY = tip.y;
-            
-            // Constrain and scale positions directly in sync with the collapsing container to prevent phasing!
-            p.x += (tip.x - p.x) * 0.28;
-            p.y += (tip.y - p.y) * 0.28;
           }
           
           const dx = p.x - targetX;
           const dy = p.y - targetY;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
           
-          let minTrailDist = dist;
-          if (engine.world.lassoPath && engine.world.lassoPath.length > 0) {
-            for (const pt of engine.world.lassoPath) {
-              const td = Math.sqrt((pt.x - p.x) ** 2 + (pt.y - p.y) ** 2);
-              if (td < minTrailDist) {
-                minTrailDist = td;
-              }
-            }
-          }
-          
-          if (minTrailDist < 55 || p.isLassoed) {
+
+
+          const insideLasso = lassoPath.length >= 4 && isPointInsideLassoPath(p.x, p.y, lassoPath);
+          const nearSmallLasso = lassoPath.length < 4 && distanceToPathSq(p.x, p.y, lassoPath) < 55 * 55;
+
+          if (insideLasso || nearSmallLasso || p.isLassoed) {
             p.isLassoed = true;
+
+            if (isCollapsing) {
+              // Constrain and scale only captured stars in sync with the collapsing container.
+              p.x += (targetX - p.x) * 0.28;
+              p.y += (targetY - p.y) * 0.28;
+            }
             
-            // Squeeze them in towards the collapsing center!
-            const pullStrength = isCollapsing ? 0.65 : 0.22;
+            // Gather captured stars toward the lasso center without wind-like ejection.
+            const pullStrength = isCollapsing ? 0.52 : 0.12;
             p.vx -= (dx / dist) * pullStrength;
             p.vy -= (dy / dist) * pullStrength;
             
-            // Swirl inside the bubble
-            const swirlSpeed = isCollapsing ? 0.7 : 1.5;
+            // Keep a subtle orbit so it still feels cosmic, but avoid flinging.
+            const swirlSpeed = isCollapsing ? 0.28 : 0.18;
             p.vx += (-dy / dist) * swirlSpeed;
             p.vy += (dx / dist) * swirlSpeed;
+            p.vx *= isCollapsing ? 0.94 : 0.90;
+            p.vy *= isCollapsing ? 0.94 : 0.90;
             
             p.colorBlend = Math.max(p.colorBlend, 0.85);
 
@@ -650,6 +736,15 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
       // Sandbox Quantum Splitter spatial rifts duplication & gravity tear (while rifts exist)
       if (engine.world.quantumRifts && engine.world.quantumRifts.length > 0 && !inFormation && !inLoadingRing && !p.isDying && p.birthProgress >= 1.0) {
         for (const f of engine.world.quantumRifts) {
+          if (
+            p.x < Math.min(f.x1, f.x2) - 120 ||
+            p.x > Math.max(f.x1, f.x2) + 120 ||
+            p.y < Math.min(f.y1, f.y2) - 120 ||
+            p.y > Math.max(f.y1, f.y2) + 120
+          ) {
+            continue;
+          }
+
           const dx = f.x2 - f.x1;
           const dy = f.y2 - f.y1;
           const lenSq = dx * dx + dy * dy;
@@ -766,8 +861,9 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
                 alpha: 1.0
               });
               
-              // Check performance cap before duplicating
-              if (engine.world.particles.length < getMaxParticles(engine.world) * 1.15) {
+              // Check performance cap before duplicating. The parent fades out
+              // over a few frames, so require room for both children up front.
+              if (engine.world.particles.length + 2 <= getMaxParticles(engine.world)) {
                 const p1: Particle = {
                   x: p.x + Math.cos(angle1) * 8,
                   y: p.y + Math.sin(angle1) * 8,
@@ -780,8 +876,8 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
                   colorBlend: 1.0,
                   wobbleTimer: p.wobbleTimer,
                   colorPrefix: 'rgba(0, 240, 255,', // force cyan/magenta quantum neon glow!
-                  flockable: p.flockable,
-                  life: p.life * 0.9, // slightly shorter life
+                  flockable: true,
+                  life: Math.random() * 0.4 + 0.35, // temporary sandbox star
                   birthProgress: 1.0,
                   deathProgress: 0,
                   isDying: false,
@@ -789,7 +885,8 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
                   behaviorTimer: p.behaviorTimer,
                   speedFactor: p.speedFactor,
                   isNursery: p.isNursery,
-                  isLassoed: false
+                  isLassoed: false,
+                  isQuantumRift: true
                 };
                 
                 const p2: Particle = {
@@ -804,8 +901,8 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
                   colorBlend: 1.0,
                   wobbleTimer: p.wobbleTimer,
                   colorPrefix: 'rgba(255, 0, 240,', // opposite split polarization!
-                  flockable: p.flockable,
-                  life: p.life * 0.9,
+                  flockable: true,
+                  life: Math.random() * 0.4 + 0.35, // temporary sandbox star
                   birthProgress: 1.0,
                   deathProgress: 0,
                   isDying: false,
@@ -813,7 +910,8 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
                   behaviorTimer: p.behaviorTimer,
                   speedFactor: p.speedFactor,
                   isNursery: p.isNursery,
-                  isLassoed: false
+                  isLassoed: false,
+                  isQuantumRift: true
                 };
                 
                 engine.world.particles.push(p1, p2);
@@ -1290,4 +1388,6 @@ export function updateAndRenderParticles(engine: CosmicCanvasEngine, width: numb
         }
       }
     }
+
+
 }

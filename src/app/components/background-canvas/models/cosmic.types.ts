@@ -114,6 +114,7 @@ export interface Particle {
   orbitAngle?: number;
   isHeart?: boolean;
   isLassoed?: boolean;
+  isQuantumRift?: boolean;
 }
 
 export interface TwinkleStar {

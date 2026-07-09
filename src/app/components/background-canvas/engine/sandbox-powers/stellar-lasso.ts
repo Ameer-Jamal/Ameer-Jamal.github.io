@@ -46,5 +46,4 @@ export function releaseStellarLassoPower(engine: CosmicCanvasEngine, intensity: 
       }
     }
   }
-
 }

@@ -5,6 +5,8 @@ import { handleSandboxPowerRelease } from './sandbox-powers';
 import { startLogoBlackhole } from './logo-easter-egg';
 import { playPowerReleaseSound, updatePowerChargeAudio } from './audio';
 
+const QUANTUM_MIN_SEGMENT_DIST_SQ = 64;
+
 export function updatePointerCoords(engine: CosmicCanvasEngine, clientX: number, clientY: number): void {
     const canvas = engine.world.canvas;
     const rect = canvas.getBoundingClientRect();
@@ -12,6 +14,26 @@ export function updatePointerCoords(engine: CosmicCanvasEngine, clientX: number,
     engine.world.mouse.y = clientY - rect.top;
   }
 
+function appendQuantumRift(engine: CosmicCanvasEngine, x1: number, y1: number, x2: number, y2: number): void {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < QUANTUM_MIN_SEGMENT_DIST_SQ) {
+      return;
+    }
+
+    engine.world.quantumRifts.push({
+      x1,
+      y1,
+      x2,
+      y2,
+      life: 1.0,
+      maxLife: 1.0
+    });
+    if (engine.world.quantumRifts.length > 80) {
+      engine.world.quantumRifts.shift();
+    }
+  }
 
 export function clearPointerState(engine: CosmicCanvasEngine, skipRandomStop = false): void {
     if (!skipRandomStop && engine.world.activePower === 'DEFAULT' && !engine.world.isMouseDown && (engine.world.state === 'SWARM' || engine.world.state === 'CHARGING')) {
@@ -71,20 +93,7 @@ export function onPointerMove(engine: CosmicCanvasEngine, event: PointerEvent): 
     const curY = engine.world.mouse.y;
 
     if (engine.world.activePower === 'QUANTUM_SPLITTER' && engine.world.isMouseDown && prevX !== -1000) {
-      const distSq = (curX - prevX) ** 2 + (curY - prevY) ** 2;
-      if (distSq > 9) {
-        engine.world.quantumRifts.push({
-          x1: prevX,
-          y1: prevY,
-          x2: curX,
-          y2: curY,
-          life: 1.0,
-          maxLife: 1.0
-        });
-        if (engine.world.quantumRifts.length > 80) {
-          engine.world.quantumRifts.shift();
-        }
-      }
+      appendQuantumRift(engine, prevX, prevY, curX, curY);
     }
 
     if (engine.world.draggedBlackhole) {
@@ -217,6 +226,9 @@ export function onPointerDown(engine: CosmicCanvasEngine, event: PointerEvent): 
 
     if (engine.world.activePower === 'STELLAR_LASSO') {
       engine.world.lassoPath = [{ x: engine.world.mouse.x, y: engine.world.mouse.y }];
+      for (const p of engine.world.particles) {
+        p.isLassoed = false;
+      }
     }
 
     // Reset dragged references

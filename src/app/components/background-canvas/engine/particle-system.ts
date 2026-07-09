@@ -231,6 +231,7 @@ export function isIntenseParticleMesh(engine: CosmicCanvasEngine): boolean {
       || engine.world.state === 'LOADING'
       || engine.world.sandboxBlackholes.length > 0
       || engine.world.wormholes.length > 0
+      || engine.world.quantumRifts.length > 0
       || (engine.world.isSandboxOpen && engine.world.activePower !== 'DEFAULT');
   }
 

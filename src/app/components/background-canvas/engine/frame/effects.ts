@@ -11,22 +11,19 @@ import { drawLoadingRingLinks, tickLoadingSpinner, tryCompleteLoading } from '..
 import { applyPageExplodeFrame, collectPageExplodeElements } from '../page-explode-targets';
 import { playSupernovaPop, stopBlackholeHum, updatePowerChargeAudio, playWormholeTeleportSound } from '../audio';
 import { getSandboxChargeProgress, tickSandboxCharge, drawSandboxPowerChargeAuras, applyBlackHolePreviewGravity, tryWormholeCapture, applyWormholeForcesToParticle, applySandboxBlackholeForces, applySandboxChronoWellForces, tickTeslaHoldZaps, updateAndDrawSandboxElements, applySandboxPlanetForces, applySandboxMeteorForces, shatterPlanet, updateAndDrawMeteors, explodeMeteor } from '../sandbox-powers';
-import { drawHeart } from './shared';
+import { drawHeart, drawCosmicBlackHole } from './shared';
 
 export function renderEffects(engine: CosmicCanvasEngine, width: number, height: number): void {
     // 6. Render Active Singularity / Moon Corona
     if (engine.world.state === 'SINGULARITY') {
       const progress = (25 - engine.world.stateTimer) / 25;
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(engine.world.singularity.x, engine.world.singularity.y, progress * 24, 0, Math.PI * 2);
-      engine.world.ctx.fillStyle = `rgba(0, 0, 0, ${progress * 0.88})`;
-      engine.world.ctx.fill();
-      
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(engine.world.singularity.x, engine.world.singularity.y, progress * 25, 0, Math.PI * 2);
-      engine.world.ctx.strokeStyle = `rgba(0, 240, 255, ${0.45 + progress * 0.5})`;
-      engine.world.ctx.lineWidth = 2.2;
-      engine.world.ctx.stroke();
+      drawCosmicBlackHole(
+        engine.world.ctx,
+        engine.world.singularity.x,
+        engine.world.singularity.y,
+        progress * 24,
+        progress
+      );
     } else if (engine.world.state === 'MOON_DANCE') {
       const t = Math.min(1.0, (390 - engine.world.stateTimer) / 300);
       const maxRadius = 150 + t * 130 + Math.sin(Date.now() / 80) * 12;
@@ -55,7 +52,10 @@ export function renderEffects(engine: CosmicCanvasEngine, width: number, height:
       engine.world.ctx.fill();
     }
 
-    // 7. Render active lightning bolt graphics
+    // 7. Render active lightning bolt graphics (capped to 18 max to prevent CPU congestion)
+    if (engine.world.lightnings.length > 18) {
+      engine.world.lightnings = engine.world.lightnings.slice(-18);
+    }
     for (let i = engine.world.lightnings.length - 1; i >= 0; i--) {
       const l = engine.world.lightnings[i];
       l.alpha -= 0.12;
@@ -237,22 +237,12 @@ export function renderEffects(engine: CosmicCanvasEngine, width: number, height:
         }
       }
 
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(bh.x, bh.y, bhRadius, 0, Math.PI * 2);
-      engine.world.ctx.fillStyle = 'rgba(10, 10, 15, 0.95)';
-      engine.world.ctx.fill();
-
-      const pulse = Math.sin(Date.now() / 100 + bh.x) * bhRadius * 0.25;
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(bh.x, bh.y, bhRadius * 1.55 + pulse, 0, Math.PI * 2);
-      engine.world.ctx.strokeStyle = `rgba(130, 80, 255, ${0.45 * (bh.radius / bh.maxRadius)})`;
-      engine.world.ctx.lineWidth = 2.2;
-      engine.world.ctx.stroke();
-
-      engine.world.ctx.beginPath();
-      engine.world.ctx.arc(bh.x, bh.y, bhRadius * 1.35 + pulse * 0.5, 0, Math.PI * 2);
-      engine.world.ctx.strokeStyle = `rgba(0, 240, 255, ${0.35 * (bh.radius / bh.maxRadius)})`;
-      engine.world.ctx.lineWidth = 1.2;
-      engine.world.ctx.stroke();
+      drawCosmicBlackHole(
+        engine.world.ctx,
+        bh.x,
+        bh.y,
+        bhRadius,
+        bh.radius / bh.maxRadius
+      );
     }
 }

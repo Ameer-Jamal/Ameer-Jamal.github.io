@@ -9,7 +9,7 @@ describe('performance-profile', () => {
   it('should return low tier when prefers-reduced-motion is enabled', () => {
     const profile = resolvePerformanceProfile({ prefersReducedMotion: true });
     expect(profile.tier).toBe('low');
-    expect(profile.maxParticles).toBe(42);
+    expect(profile.maxParticles).toBe(35);
   });
 
   it('should return high tier for desktop-like devices with enough cores', () => {
@@ -21,7 +21,7 @@ describe('performance-profile', () => {
       devicePixelRatio: 1
     });
     expect(profile.tier).toBe('high');
-    expect(profile.maxParticles).toBe(145);
+    expect(profile.maxParticles).toBe(115);
     expect(profile.dprCap).toBe(2.0);
   });
 
@@ -47,7 +47,7 @@ describe('performance-profile', () => {
       devicePixelRatio: 2
     });
     expect(profile.tier).toBe('medium');
-    expect(profile.maxParticles).toBe(72);
+    expect(profile.maxParticles).toBe(65);
   });
 
   it('should step tiers up and down predictably', () => {
@@ -62,7 +62,7 @@ describe('performance-profile', () => {
   it('should clone profile values per tier', () => {
     const high = getProfileForTier('high');
     high.maxParticles = 1;
-    expect(getProfileForTier('high').maxParticles).toBe(145);
+    expect(getProfileForTier('high').maxParticles).toBe(115);
     expect(getProfileForTier('medium').galaxyUpdateStride).toBe(3);
     expect(getProfileForTier('low').galaxyUpdateStride).toBe(4);
   });

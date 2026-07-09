@@ -28,7 +28,7 @@ const PROFILES: Record<PerformanceTier, PerformanceProfile> = {
   high: {
     tier: 'high',
     dprCap: 2.0,
-    maxParticles: 145,
+    maxParticles: 115,
     backgroundStarDivisor: 6000,
     galaxyStarMultiplier: 1.0,
     dustDivisor: 10000,
@@ -43,7 +43,7 @@ const PROFILES: Record<PerformanceTier, PerformanceProfile> = {
   medium: {
     tier: 'medium',
     dprCap: 1.25,
-    maxParticles: 72,
+    maxParticles: 65,
     backgroundStarDivisor: 10000,
     galaxyStarMultiplier: 0.35,
     dustDivisor: 17000,
@@ -58,7 +58,7 @@ const PROFILES: Record<PerformanceTier, PerformanceProfile> = {
   low: {
     tier: 'low',
     dprCap: 1.0,
-    maxParticles: 42,
+    maxParticles: 35,
     backgroundStarDivisor: 15000,
     galaxyStarMultiplier: 0.15,
     dustDivisor: 26000,

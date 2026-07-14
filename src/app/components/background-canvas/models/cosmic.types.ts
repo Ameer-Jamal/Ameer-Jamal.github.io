@@ -77,6 +77,7 @@ export interface SandboxMeteor {
   timer: number;
   trail: { x: number; y: number }[];
   exploded: boolean;
+  wormholeCooldownFrames?: number;
 }
 
 export interface Wormhole {

@@ -1,13 +1,19 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CosmicCanvasEngine, TOOLS_LIST } from './engine/cosmic-canvas-engine';
-import { MousePower } from './models/cosmic.types';
+import { MousePower, SandboxTool } from './models/cosmic.types';
 import { startAyaDance } from './engine/aya-easter-egg';
+import { CosmicContextMenuComponent } from './cosmic-context-menu/cosmic-context-menu.component';
+import {
+  findSandboxContextTarget,
+  SandboxContextTarget,
+  vaporizeSandboxContextTarget
+} from './engine/sandbox-context-target';
 
 @Component({
   selector: 'app-background-canvas',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, CosmicContextMenuComponent],
   templateUrl: './background-canvas.component.html'
 })
 export class BackgroundCanvasComponent implements OnInit, OnDestroy {
@@ -18,16 +24,15 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   private explicitTouchInputEnabled = false;
   private activeTouchId: number | null = null;
   private removeTouchListeners: Array<() => void> = [];
+  isSandboxOpen = false;
 
-  get isSandboxOpen(): boolean {
-    return this.engine?.world.isSandboxOpen ?? false;
-  }
+  showContextMenu = false;
+  contextMenuX = 0;
+  contextMenuY = 0;
+  contextTarget: SandboxContextTarget | null = null;
 
-  set isSandboxOpen(value: boolean) {
-    if (this.engine) {
-      this.engine.world.isSandboxOpen = value;
-    }
-  }
+  private readonly recentlyUsedTools: MousePower[] = ['DEFAULT', 'BLACK_HOLE', 'PLANET', 'METEOR', 'QUANTUM_SPLITTER'];
+  quickTools: SandboxTool[] = [];
 
   get isSandboxPinned(): boolean {
     return this.engine?.world.isSandboxPinned ?? false;
@@ -67,8 +72,10 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     this.ngZone.runOutsideAngular(() => {
       this.engine.init();
     });
+    this.syncSandboxOpenState();
 
     this.setupTouchInput();
+    this.updateQuickTools();
 
     (window as any).__triggerAyaEasterEgg = () => {
       if (this.engine) {
@@ -134,12 +141,26 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   @HostListener('window:pointerdown', ['$event'])
   onPointerDown(event: PointerEvent): void {
     if (this.shouldIgnorePointerEvent(event)) return;
+    if (event.button === 2 || this.isContextMenuTarget(event.target)) {
+      return;
+    }
+
+    if (this.showContextMenu) {
+      this.closeContextMenu();
+      return;
+    }
+
     this.engine?.onPointerDown(event);
+    this.syncSandboxOpenState();
   }
 
   @HostListener('window:pointerup', ['$event'])
   onPointerUp(event: PointerEvent): void {
     if (this.shouldIgnorePointerEvent(event)) return;
+    if (event.button === 2 || this.isContextMenuTarget(event.target)) {
+      return;
+    }
+
     this.engine?.onPointerUp(event);
   }
 
@@ -174,7 +195,11 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
   }
 
   toggleSandboxBar(): void {
-    this.engine?.toggleSandboxBar();
+    if (!this.engine) {
+      return;
+    }
+    this.engine.toggleSandboxBar();
+    this.syncSandboxOpenState();
   }
 
   toggleSandboxPin(): void {
@@ -183,6 +208,14 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
 
   selectPower(power: MousePower): void {
     this.engine?.selectPower(power);
+
+    const existingIndex = this.recentlyUsedTools.indexOf(power);
+    if (existingIndex !== -1) {
+      this.recentlyUsedTools.splice(existingIndex, 1);
+    }
+    this.recentlyUsedTools.unshift(power);
+    this.recentlyUsedTools.splice(5);
+    this.updateQuickTools();
   }
 
   clearSandboxElements(): void {
@@ -274,6 +307,7 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     const synthetic = this.buildSyntheticPointer('pointerdown', touch, event.target);
     this.engine.onPointerEnter(synthetic);
     this.engine.onPointerDown(synthetic);
+    this.syncSandboxOpenState();
   }
 
   private handleTouchMove(event: TouchEvent): void {
@@ -318,5 +352,86 @@ export class BackgroundCanvasComponent implements OnInit, OnDestroy {
     event.preventDefault();
     this.engine.onPointerCancel(this.buildSyntheticPointer('pointercancel', touch, event.target));
     this.activeTouchId = null;
+  }
+
+  private syncSandboxOpenState(): void {
+    this.isSandboxOpen = this.engine?.world.isSandboxOpen ?? false;
+  }
+
+  findTargetAt(x: number, y: number): SandboxContextTarget | null {
+    return this.engine ? findSandboxContextTarget(this.engine, x, y) : null;
+  }
+
+  deleteTargetObject(): void {
+    if (this.engine && this.contextTarget) {
+      vaporizeSandboxContextTarget(this.engine, this.contextTarget);
+    }
+    this.closeContextMenu();
+  }
+
+  toggleGameModeFromMenu(): void {
+    if (typeof document !== 'undefined') {
+      if (this.isGameMode) {
+        document.body.classList.remove('is-game-mode');
+      } else {
+        document.body.classList.add('is-game-mode');
+      }
+    }
+  }
+
+  updateQuickTools(): void {
+    this.quickTools = this.recentlyUsedTools
+      .map(id => this.toolsList.find(tool => tool.id === id))
+      .filter((tool): tool is SandboxTool => tool !== undefined);
+  }
+
+  selectPowerFromMenu(power: MousePower): void {
+    this.selectPower(power);
+    this.closeContextMenu();
+  }
+
+  resetFromContextMenu(): void {
+    this.clearSandboxElements();
+    this.closeContextMenu();
+  }
+
+  triggerBigBangFromContextMenu(): void {
+    this.onLogoBlackholeTrigger();
+    this.closeContextMenu();
+  }
+
+  toggleGameModeFromContextMenu(): void {
+    this.toggleGameModeFromMenu();
+    this.closeContextMenu();
+  }
+
+  @HostListener('window:contextmenu', ['$event'])
+  onContextMenu(event: MouseEvent): void {
+    if (!this.engine) return;
+
+    const target = event.target;
+    if (target instanceof Element && target.closest('#main article, .sandbox-panel, .sandbox-trigger, .sandbox-trigger-hint, input, textarea, select, button, a, label')) {
+      return;
+    }
+
+    event.preventDefault();
+    this.contextTarget = this.findTargetAt(event.clientX, event.clientY);
+    this.contextMenuX = event.clientX;
+    this.contextMenuY = event.clientY;
+    this.showContextMenu = true;
+  }
+
+  @HostListener('window:click', ['$event'])
+  onWindowClick(): void {
+    this.closeContextMenu();
+  }
+
+  private closeContextMenu(): void {
+    this.showContextMenu = false;
+    this.contextTarget = null;
+  }
+
+  private isContextMenuTarget(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest('app-cosmic-context-menu') !== null;
   }
 }

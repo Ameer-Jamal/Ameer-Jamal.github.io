@@ -1,0 +1,56 @@
+<div
+  #menu
+  class="cosmic-context-menu"
+  [class.cosmic-context-menu--positioned]="positioned"
+  role="menu"
+  aria-label="Cosmic options"
+  [style.left.px]="displayX"
+  [style.top.px]="displayY"
+  (click)="$event.stopPropagation()">
+  <div class="cosmic-context-menu__header">Cosmic Options</div>
+
+  <div class="cosmic-context-menu__section" *ngIf="target">
+    <button
+      type="button"
+      role="menuitem"
+      class="cosmic-context-menu__item cosmic-context-menu__item--danger"
+      style="--item-index: 0"
+      (click)="vaporize.emit()">
+      <span aria-hidden="true">🗑️</span>
+      <span>Vaporize {{ target.label }}</span>
+    </button>
+  </div>
+
+  <div class="cosmic-context-menu__section">
+    <button type="button" role="menuitem" class="cosmic-context-menu__item" style="--item-index: 1" (click)="resetSimulation.emit()">
+      <span aria-hidden="true">🧹</span>
+      <span>Reset Simulation</span>
+    </button>
+    <button type="button" role="menuitem" class="cosmic-context-menu__item" style="--item-index: 2" (click)="triggerBigBang.emit()">
+      <span aria-hidden="true">💥</span>
+      <span>Trigger Big Bang</span>
+    </button>
+    <button type="button" role="menuitem" class="cosmic-context-menu__item" style="--item-index: 3" (click)="toggleGameMode.emit()">
+      <span aria-hidden="true">🎮</span>
+      <span>{{ gameMode ? 'Exit Game Mode' : 'Enter Game Mode' }}</span>
+    </button>
+  </div>
+
+  <div class="cosmic-context-menu__section">
+    <div class="cosmic-context-menu__sub-header">Quick Tool Select</div>
+    <button
+      *ngFor="let tool of quickTools; let toolIndex = index; trackBy: trackByToolId"
+      type="button"
+      role="menuitemradio"
+      class="cosmic-context-menu__item"
+      [class.cosmic-context-menu__item--active]="activePower === tool.id"
+      [attr.aria-checked]="activePower === tool.id"
+      [style.--item-index]="toolIndex + 4"
+      (click)="powerSelected.emit(tool.id)">
+      <span aria-hidden="true">{{ tool.icon }}</span>
+      <span>{{ tool.name }}</span>
+    </button>
+  </div>
+
+  <div class="cosmic-context-menu__footer">Right click menu</div>
+</div>

@@ -1,7 +1,7 @@
 import type { CosmicCanvasEngine } from '../cosmic-canvas-engine';
 import { SandboxMeteor, Particle } from '../../models/cosmic.types';
-import { spawnMiniSupernova, spawnStellarBirth } from '../particle-system';
-import { playMeteorExplosion } from '../audio';
+import { spawnMiniSupernova, spawnStellarBirth, spawnStardustPuff } from '../particle-system';
+import { playMeteorExplosion, playWormholeTeleportSound } from '../audio';
 import { getSandboxChargeProgress } from './charge';
 import { shatterPlanet } from './planet';
 
@@ -141,7 +141,8 @@ export function spawnSandboxMeteor(engine: CosmicCanvasEngine, x: number, y: num
     radius,
     timer: 720, // 12 seconds before auto-explode
     trail: [],
-    exploded: false
+    exploded: false,
+    wormholeCooldownFrames: 0
   };
 
   engine.world.sandboxMeteors.push(meteor);
@@ -226,6 +227,69 @@ export function explodeMeteor(engine: CosmicCanvasEngine, meteor: SandboxMeteor)
   playMeteorExplosion();
 }
 
+function tryWormholeCaptureMeteor(engine: CosmicCanvasEngine, m: SandboxMeteor): boolean {
+  if (engine.world.wormholes.length !== 2 || m.exploded) {
+    return false;
+  }
+
+  if ((m.wormholeCooldownFrames ?? 0) > 0) {
+    return false;
+  }
+
+  const entry = engine.world.wormholes[0];
+  const exit = engine.world.wormholes[1];
+  const hypergateActive = engine.world.wormholeHypergateTimer > 0;
+  const captureRadius = Math.max(
+    entry.radius + m.radius * 0.85,
+    entry.radius * (hypergateActive ? 1.9 : 1.15)
+  );
+  const dx = entry.x - m.x;
+  const dy = entry.y - m.y;
+  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+  const speed = Math.sqrt(m.vx * m.vx + m.vy * m.vy);
+
+  if (dist >= captureRadius) {
+    return false;
+  }
+
+  if (speed < 4 && dist > captureRadius * 0.7) {
+    return false;
+  }
+
+  let dirX = m.vx;
+  let dirY = m.vy;
+  const dirLen = Math.sqrt(dirX * dirX + dirY * dirY);
+
+  if (dirLen > 0.001) {
+    dirX /= dirLen;
+    dirY /= dirLen;
+  } else {
+    const exitDx = exit.x - entry.x;
+    const exitDy = exit.y - entry.y;
+    const exitLen = Math.sqrt(exitDx * exitDx + exitDy * exitDy) || 1;
+    dirX = exitDx / exitLen;
+    dirY = exitDy / exitLen;
+  }
+
+  const perpendicularX = -dirY;
+  const perpendicularY = dirX;
+  const launchSpeed = Math.max(speed * (hypergateActive ? 1.18 : 1.08), hypergateActive ? 13 : 9);
+  const lateralOffset = (Math.random() - 0.5) * Math.min(12, m.radius * 0.5);
+  const exitOffset = exit.radius + m.radius + 8;
+
+  m.x = exit.x + dirX * exitOffset + perpendicularX * lateralOffset;
+  m.y = exit.y + dirY * exitOffset + perpendicularY * lateralOffset;
+  m.vx = dirX * launchSpeed + perpendicularX * launchSpeed * 0.18 * (Math.random() - 0.5);
+  m.vy = dirY * launchSpeed + perpendicularY * launchSpeed * 0.18 * (Math.random() - 0.5);
+  m.trail.length = 0;
+  m.wormholeCooldownFrames = hypergateActive ? 16 : 10;
+
+  spawnStardustPuff(engine, entry.x, entry.y, 'rgba(0, 240, 255,');
+  spawnStardustPuff(engine, exit.x, exit.y, 'rgba(255, 100, 230,');
+  playWormholeTeleportSound();
+  return true;
+}
+
 export function updateAndDrawMeteors(engine: CosmicCanvasEngine, width: number, height: number): void {
   const ctx = engine.world.ctx;
 
@@ -241,6 +305,9 @@ export function updateAndDrawMeteors(engine: CosmicCanvasEngine, width: number, 
     }
 
     m.timer--;
+    if ((m.wormholeCooldownFrames ?? 0) > 0) {
+      m.wormholeCooldownFrames!--;
+    }
 
     // Update position
     m.x += m.vx;
@@ -332,15 +399,33 @@ export function updateAndDrawMeteors(engine: CosmicCanvasEngine, width: number, 
       }
     }
 
-    for (const wh of engine.world.wormholes) {
-      if (wh.type !== 'ENTRY') continue;
-      const dx = wh.x - m.x;
-      const dy = wh.y - m.y;
+    if (engine.world.wormholes.length === 2) {
+      const entry = engine.world.wormholes[0];
+      const hypergateActive = engine.world.wormholeHypergateTimer > 0;
+      const captureRadius = Math.max(
+        entry.radius + m.radius * 0.85,
+        entry.radius * (hypergateActive ? 1.9 : 1.15)
+      );
+      const dx = entry.x - m.x;
+      const dy = entry.y - m.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      if (dist < 60) {
-        const force = (60 - dist) / 60 * 1.5;
-        m.vx += (dx / dist) * force;
-        m.vy += (dy / dist) * force;
+
+      if (tryWormholeCaptureMeteor(engine, m)) {
+        // Reset the recorded trail so the next frame starts from the exit portal.
+        m.trail.push({ x: m.x, y: m.y });
+      } else {
+        const entryReach = 340 * (hypergateActive ? 1.8 : 1);
+        if (dist < entryReach) {
+          const force = (entryReach - dist) / entryReach * (hypergateActive ? 2.8 : 1.4);
+          m.vx += (dx / dist) * force;
+          m.vy += (dy / dist) * force;
+          m.vx += (-dy / dist) * force * 0.35;
+          m.vy += (dx / dist) * force * 0.35;
+
+          if (dist < captureRadius * 1.15) {
+            tryWormholeCaptureMeteor(engine, m);
+          }
+        }
       }
     }
 

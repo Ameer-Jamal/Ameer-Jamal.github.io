@@ -52,9 +52,9 @@ export function renderEffects(engine: CosmicCanvasEngine, width: number, height:
       engine.world.ctx.fill();
     }
 
-    // 7. Render active lightning bolt graphics (capped to 18 max to prevent CPU congestion)
-    if (engine.world.lightnings.length > 18) {
-      engine.world.lightnings = engine.world.lightnings.slice(-18);
+    // 7. Render active lightning bolt graphics (keep a higher cap for Tesla bursts)
+    if (engine.world.lightnings.length > 30) {
+      engine.world.lightnings = engine.world.lightnings.slice(-30);
     }
     for (let i = engine.world.lightnings.length - 1; i >= 0; i--) {
       const l = engine.world.lightnings[i];
@@ -65,22 +65,35 @@ export function renderEffects(engine: CosmicCanvasEngine, width: number, height:
         continue;
       }
 
-      engine.world.ctx.beginPath();
-      engine.world.ctx.moveTo(l.segments[0].x, l.segments[0].y);
-      for (let j = 1; j < l.segments.length; j++) {
-        engine.world.ctx.lineTo(l.segments[j].x, l.segments[j].y);
-      }
-      engine.world.ctx.strokeStyle = engine.world.isAyaDanceActive
-        ? `rgba(255, 100, 180, ${l.alpha * 0.9})`
-        : `rgba(255, 120, 240, ${l.alpha * 0.85})`;
-      engine.world.ctx.lineWidth = 2.2;
-      engine.world.ctx.stroke();
+      const ctx = engine.world.ctx;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.globalCompositeOperation = 'lighter';
 
-      engine.world.ctx.strokeStyle = engine.world.isAyaDanceActive
-        ? `rgba(255, 180, 220, ${l.alpha * 0.45})`
-        : `rgba(0, 230, 255, ${l.alpha * 0.4})`;
-      engine.world.ctx.lineWidth = 4.5;
-      engine.world.ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(l.segments[0].x, l.segments[0].y);
+      for (let j = 1; j < l.segments.length; j++) {
+        ctx.lineTo(l.segments[j].x, l.segments[j].y);
+      }
+
+      ctx.strokeStyle = engine.world.isAyaDanceActive
+        ? `rgba(255, 180, 220, ${l.alpha * 0.38})`
+        : `rgba(0, 230, 255, ${l.alpha * 0.34})`;
+      ctx.lineWidth = 5.6;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(l.segments[0].x, l.segments[0].y);
+      for (let j = 1; j < l.segments.length; j++) {
+        ctx.lineTo(l.segments[j].x, l.segments[j].y);
+      }
+      ctx.strokeStyle = engine.world.isAyaDanceActive
+        ? `rgba(255, 100, 180, ${l.alpha * 0.92})`
+        : `rgba(255, 120, 240, ${l.alpha * 0.88})`;
+      ctx.lineWidth = 2.3;
+      ctx.stroke();
+      ctx.restore();
     }
 
     // 8. Render active expanding shockwaves

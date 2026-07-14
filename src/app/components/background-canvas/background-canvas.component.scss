@@ -353,30 +353,58 @@ body.is-aya-message.is-aya-reverting {
   top: 0;
   right: 0;
   left: auto;
-  transform: translateX(100%);
+  transform: translate3d(100%, 0, 0);
   width: 380px;
   max-width: 90%;
+  box-sizing: border-box;
+  height: 100vh;
   height: 100dvh;
+  max-height: 100vh;
   max-height: 100dvh;
   overflow: hidden;
+  isolation: isolate;
   background: rgba(5, 10, 24, 0.88);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
   border: 1px solid rgba(0, 240, 255, 0.25);
   border-right: none;
   border-radius: 16px 0 0 16px;
   box-shadow: -15px 0 50px rgba(0, 0, 0, 0.75), 0 0 35px rgba(0, 240, 255, 0.08);
   z-index: 12000;
   transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   padding: 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   pointer-events: auto;
+
+  /* Prevent transition flickering/flashing in Edge and Chrome */
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Isolate backdrop-filter to a pseudo-element to prevent Chromium/Edge rendering glitches */
+.sandbox-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  border-radius: inherit;
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  pointer-events: none;
+}
+
+.sandbox-panel > * {
+  position: relative;
+  z-index: 1;
 }
 
 .sandbox-panel--open {
-  transform: translateX(0);
+  transform: translate3d(0, 0, 0) !important;
 }
 
 
@@ -547,10 +575,10 @@ body.is-aya-message.is-aya-reverting {
 }
 
 .sandbox-panel__body {
-  flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 12px;
 }
 
@@ -559,7 +587,8 @@ body.is-aya-message.is-aya-reverting {
   flex-direction: column;
   gap: 10px;
   overflow-y: auto;
-  flex-grow: 1;
+  min-height: 0;
+  height: 100%;
   padding-right: 4px;
 
   &::-webkit-scrollbar {
@@ -580,14 +609,17 @@ body.is-aya-message.is-aya-reverting {
 @media (max-width: 600px) {
   .sandbox-panel {
     padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     width: 280px;
     max-width: 85%;
+    height: 100vh;
     height: 100dvh;
+    max-height: 100vh;
     max-height: 100dvh;
   }
 
   .sandbox-panel--open {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0) !important;
   }
 
   .sandbox-tool {
@@ -610,13 +642,28 @@ body.is-aya-message.is-aya-reverting {
   }
 
   .sandbox-panel__actions {
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex-wrap: nowrap;
     justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .sandbox-panel__controls-row {
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .sandbox-panel__game-mode-toggle {
+    width: 100%;
+    justify-content: center;
   }
 
   .sandbox-panel__hint {
     width: 100%;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
+    text-align: center;
   }
 
   .sandbox-action-btn {
@@ -703,7 +750,9 @@ body.is-aya-message.is-aya-reverting {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 14px;
   flex-shrink: 0;
-  margin-top: auto;
+  margin-top: 0;
+  min-width: 0;
+  overflow: visible;
 }
 
 .sandbox-panel__hint-row {
@@ -726,6 +775,7 @@ body.is-aya-message.is-aya-reverting {
   justify-content: space-between;
   width: 100%;
   gap: 12px;
+  min-width: 0;
 }
 
 .sandbox-action-btn {
@@ -744,6 +794,7 @@ body.is-aya-message.is-aya-reverting {
   color: #ffffff;
   font-size: 0.68rem;
   font-weight: 700;
+  min-width: 0;
 }
 
 .sandbox-action-btn:hover {

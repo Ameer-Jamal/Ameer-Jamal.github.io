@@ -376,9 +376,13 @@ describe('BackgroundCanvasComponent', () => {
     it('should toggle the sandbox open state', () => {
       expect(component.isSandboxOpen).toBeFalse();
       component.toggleSandboxBar();
+      fixture.detectChanges();
       expect(component.isSandboxOpen).toBeTrue();
+      expect(fixture.nativeElement.querySelector('.sandbox-panel')?.classList.contains('sandbox-panel--open')).toBeTrue();
       component.toggleSandboxBar();
+      fixture.detectChanges();
       expect(component.isSandboxOpen).toBeFalse();
+      expect(fixture.nativeElement.querySelector('.sandbox-panel')?.classList.contains('sandbox-panel--open')).toBeFalse();
     });
 
     it('should toggle sandbox pin state', () => {
@@ -841,6 +845,45 @@ describe('BackgroundCanvasComponent', () => {
       expect(superLightnings).toBeGreaterThan(tapLightnings);
     });
 
+    it('should make charged Tesla releases feel stronger than tap releases', () => {
+      component.selectPower('TESLA_DISCHARGE');
+      w().particles = Array.from({ length: 18 }, (_, i) => ({
+        x: 100 + (i % 6) * 10,
+        y: 100 + Math.floor(i / 6) * 10,
+        vx: 0,
+        vy: 0,
+        baseVx: 0,
+        baseVy: 0,
+        radius: 2,
+        baseRadius: 2,
+        colorBlend: 0,
+        wobbleTimer: 0,
+        colorPrefix: 'rgba(255, 255, 255,',
+        flockable: true,
+        life: 1.0,
+        birthProgress: 1.0,
+        deathProgress: 0.0,
+        isDying: false,
+        behaviorState: 'CRUISE',
+        behaviorTimer: 100,
+        speedFactor: 1.0
+      }));
+
+      component.onMouseDown(new MouseEvent('mousedown', { clientX: 100, clientY: 100 }));
+      component.onMouseUp(new MouseEvent('mouseup', { clientX: 100, clientY: 100 }));
+      const tapLightnings = w().lightnings.length;
+      const tapShake = w().shakeTimer;
+
+      w().lightnings = [];
+      w().shakeTimer = 0;
+      component.onMouseDown(new MouseEvent('mousedown', { clientX: 100, clientY: 100 }));
+      w().chargeTime = 12;
+      component.onMouseUp(new MouseEvent('mouseup', { clientX: 100, clientY: 100 }));
+
+      expect(w().lightnings.length).toBeGreaterThan(tapLightnings);
+      expect(w().shakeTimer).toBeGreaterThan(tapShake);
+    });
+
     it('should add shockwave on Anti-Gravity super release', () => {
       component.selectPower('REPELLER');
       const initialWaves = w().shockwaves.length;
@@ -1032,6 +1075,67 @@ describe('BackgroundCanvasComponent', () => {
       updateAndDrawMeteors(eng(), 1920, 1080);
       updateAndDrawMeteors(eng(), 1920, 1080);
       expect(w().sandboxMeteors.length).toBe(0);
+    });
+
+    it('should teleport meteors through wormholes, preserve forward travel, and clear the trail', () => {
+      spyOn(Math, 'random').and.returnValue(0.5);
+      w().wormholes = [
+        { x: 200, y: 200, radius: 42, type: 'ENTRY', pulsePhase: 0 },
+        { x: 600, y: 260, radius: 42, type: 'EXIT', pulsePhase: 0 }
+      ];
+
+      w().sandboxMeteors = [{
+        x: 201,
+        y: 200,
+        vx: 9,
+        vy: 0,
+        radius: 14,
+        timer: 120,
+        trail: [{ x: 150, y: 200 }, { x: 180, y: 200 }],
+        exploded: false,
+        wormholeCooldownFrames: 0
+      }];
+
+      updateAndDrawMeteors(eng(), 1920, 1080);
+
+      const meteor = w().sandboxMeteors[0];
+      expect(meteor.x).toBeGreaterThan(600);
+      expect(Math.abs(meteor.y - 260)).toBeLessThan(25);
+      expect(meteor.vx).toBeGreaterThan(0);
+      expect(meteor.trail.length).toBeLessThanOrEqual(1);
+      expect((meteor.wormholeCooldownFrames ?? 0)).toBeGreaterThan(0);
+    });
+
+    it('should not instantly recapture a meteor after wormhole exit while cooldown is active', () => {
+      spyOn(Math, 'random').and.returnValue(0.5);
+      w().wormholes = [
+        { x: 200, y: 200, radius: 42, type: 'ENTRY', pulsePhase: 0 },
+        { x: 230, y: 200, radius: 42, type: 'EXIT', pulsePhase: 0 }
+      ];
+
+      w().sandboxMeteors = [{
+        x: 201,
+        y: 200,
+        vx: 10,
+        vy: 0,
+        radius: 12,
+        timer: 120,
+        trail: [],
+        exploded: false,
+        wormholeCooldownFrames: 0
+      }];
+
+      updateAndDrawMeteors(eng(), 1920, 1080);
+      const meteor = w().sandboxMeteors[0];
+      const firstExitX = meteor.x;
+      const firstCooldown = meteor.wormholeCooldownFrames ?? 0;
+
+      updateAndDrawMeteors(eng(), 1920, 1080);
+
+      expect(firstCooldown).toBeGreaterThan(0);
+      expect((meteor.wormholeCooldownFrames ?? 0)).toBeLessThan(firstCooldown);
+      expect(meteor.x).toBeGreaterThan(firstExitX);
+      expect(meteor.x).toBeGreaterThan(w().wormholes[1].x);
     });
 
     it('should trap stars in orbit when STELLAR_LASSO is active, and release them as shotgun blast', () => {

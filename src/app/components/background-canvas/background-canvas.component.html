@@ -1,7 +1,13 @@
 <div class="sandbox-container">
   <div class="sandbox-trigger-wrapper">
     <span *ngIf="!isSandboxOpen" class="sandbox-trigger-hint">? ➔</span>
-    <button class="sandbox-trigger" (click)="toggleSandboxBar()" aria-label="Toggle Sandbox Mode">
+    <button
+      class="sandbox-trigger"
+      type="button"
+      (click)="toggleSandboxBar()"
+      [attr.aria-expanded]="isSandboxOpen"
+      aria-controls="sandbox-panel"
+      aria-label="Toggle Sandbox Mode">
       <div class="pulsar-icon">
         <span class="pulsar-icon__core"></span>
         <span class="pulsar-icon__ring"></span>
@@ -9,7 +15,7 @@
     </button>
   </div>
 
-  <div class="sandbox-panel" [class.sandbox-panel--open]="isSandboxOpen">
+  <div id="sandbox-panel" class="sandbox-panel" [class.sandbox-panel--open]="isSandboxOpen">
     <button
       class="sandbox-panel__close"
       type="button"
@@ -71,3 +77,16 @@
   <canvas #canvasRef id="bg-canvas"></canvas>
 </div>
 
+<app-cosmic-context-menu
+  *ngIf="showContextMenu"
+  [x]="contextMenuX"
+  [y]="contextMenuY"
+  [target]="contextTarget"
+  [activePower]="activePower"
+  [quickTools]="quickTools"
+  [gameMode]="isGameMode"
+  (vaporize)="deleteTargetObject()"
+  (resetSimulation)="resetFromContextMenu()"
+  (triggerBigBang)="triggerBigBangFromContextMenu()"
+  (toggleGameMode)="toggleGameModeFromContextMenu()"
+  (powerSelected)="selectPowerFromMenu($event)" />
